@@ -5,7 +5,8 @@ Rencana lengkap & keputusan: `docs/PLAN.md`. Patuhi file ini di setiap fase.
 
 ## Batasan biaya & status (Amandemen 1)
 
-- **100% gratis**, kecuali langganan Claude Code: GitHub Pages (repo publik) + GitHub Actions, Supabase Free, Cloudflare Turnstile, SMTP bawaan Supabase, domain bawaan Pages.
+- **100% gratis**, kecuali langganan Claude Code: GitHub Pages (repo publik) + GitHub Actions, Supabase Free, Cloudflare Turnstile, domain bawaan Pages.
+- SMTP bawaan Supabase **hanya mengirim ke anggota tim organisasi Supabase**. Jangan bergantung padanya untuk alur petugas: tidak ada magic link, OTP email, atau email reset password.
 - Fitur yang butuh layanan/paket berbayar (custom SMTP, image transformation, PITR, branching, custom domain, SaaS lain) → **BERHENTI dan tanya dulu**. Jangan menambahkannya sendiri, termasuk layanan pihak ketiga "gratis" yang belum disetujui.
 - Status **PROTOTIPE**: README dan banner aplikasi menyatakan belum untuk catatan resmi. Banner dipertahankan sampai pindah ke paket berbayar.
 - Data uji coba **wajib dummy** (seed, demo, e2e, screenshot). Jangan pernah menulis nama atau telepon asli di kode, seed, test, atau issue.
@@ -16,7 +17,7 @@ Rencana lengkap & keputusan: `docs/PLAN.md`. Patuhi file ini di setiap fase.
 - `motion` (Framer Motion) via `LazyMotion` + `m.*` (mode `strict`, jangan pakai `motion.*`)
 - React Router 8 **HashRouter** (`createHashRouter`) — aman untuk GitHub Pages
 - React Three Fiber + drei (Fase 5–6, **lazy** saja), Recharts (Fase 4)
-- Supabase: Postgres, Auth (magic link + OTP), Realtime broadcast, Storage, Edge Functions (Deno)
+- Supabase: Postgres, Auth (**email + password**), Realtime broadcast, Storage, Edge Functions (Deno)
 - zustand untuk state lintas komponen (scene director, UI)
 - Test: Vitest + Testing Library (unit), pgTAP (RLS, Fase 1), Playwright (e2e, Fase 7)
 - pnpm 10, Node ≥ 22
@@ -55,7 +56,21 @@ Rencana lengkap & keputusan: `docs/PLAN.md`. Patuhi file ini di setiap fase.
 - Setiap perubahan skema/RLS wajib disertai test pgTAP. Test RLS dijalankan di CI (`db-tests.yml`) setiap kali `supabase/**` berubah, dan wajib hijau sebelum merge.
 - `anon` **tanpa SELECT** ke tabel mentah mana pun. Publik hanya memanggil `public_status()` (persen kapasitas bulat + ada/tidak ada limbah) dan `ping()`. Fungsi agregat lain hanya untuk petugas.
 - Kolom aktor (`created_by`, `verified_by`) tanpa FK ke `auth.users` (nama di-snapshot), agar restore ke DB kosong tidak gagal.
-- Repo publik: `.gitignore` mencakup `.env*`, backup, ekspor, dan kunci (`*.age`, `*.gpg`, `*.dump`, `backup/`, `exports/`, ...). Gitleaks berjalan di CI (`secret-scan.yml`). Workflow tidak boleh mencetak data atau secret ke log, karena log Actions repo publik bisa dibaca semua orang.
+- Repo publik: `.gitignore` mencakup `.env*`, backup, ekspor, dan kunci (`*.age`, `*.gpg`, `*.dump`, `backup/`, `exports/`, ...). Gitleaks berjalan di CI (`secret-scan.yml`) memakai CLI v8.30.1 yang dipin versi + SHA-256 (bukan gitleaks-action, jadi tanpa lisensi). Selalu pakai `--redact`. Workflow tidak boleh mencetak data atau secret ke log, karena log Actions repo publik bisa dibaca semua orang.
+
+## Login petugas (Keputusan K1)
+
+- `supabase.auth.signInWithPassword`. Sign up dimatikan di Supabase. Kode tidak boleh memanggil `signUp`, `signInWithOtp`, atau `resetPasswordForEmail`.
+- Akun dibuat admin di Supabase Dashboard (Authentication → Add user, _auto-confirm_). Role (`officer`/`admin`) diisi di tabel `profiles`.
+- Petugas **tidak** diundang sebagai anggota organisasi Supabase.
+- Lupa password → admin me-reset di Dashboard.
+
+## Batas data publik (Keputusan K1)
+
+- Kode publik (`src/features/site3d/**`, halaman lapor/status/dashboard publik; daftar `PUBLIC_FILES` di `eslint.config.js`) hanya boleh memakai `@/lib/api/public-status` untuk data stok.
+- Kode publik dilarang mengimpor modul petugas, `spu3d`, supabase-js, atau API lain. Ditegakkan ESLint dan diuji di `src/test/public-boundary.test.ts`.
+- `parsePublicStatus()` adalah whitelist (`capacityPct`, `hasWaste`, `updatedAt`). Jangan menambah field stok ke kontrak ini.
+- Peta site publik: tanpa ikon, label, atau angka drum/stok. 3D interior dan what-if hanya di route petugas (`/petugas/3d`, dijaga `RequireRole`).
 
 ## Visibilitas data (Amandemen 1)
 
@@ -69,8 +84,9 @@ Rencana lengkap & keputusan: `docs/PLAN.md`. Patuhi file ini di setiap fase.
 - Keep-alive: workflow terjadwal tiap 3 hari memanggil RPC `ping()` dengan anon key.
 - Backup (Fase 7):
   - Harian, `pg_dump --data-only` tabel utama, dienkripsi `age` sebelum commit.
-  - Disimpan di repo **privat** terpisah memakai kredensial scope minimum. Retensi 90 hari.
-  - Skrip restore + dokumentasi uji restore ke DB kosong. Restore **wajib diuji**.
+  - Workflow berjalan **di repo privat** backup. Retensi 90 hari.
+  - Workflow hanya memegang **kunci publik** `age` (recipient). Kunci privat **tidak pernah** masuk repo atau GitHub Secrets; kunci disimpan offline oleh pemilik.
+  - Skrip restore + dokumentasi uji restore ke DB kosong. Restore **wajib diuji**, secara manual, memakai kunci offline.
 
 ## Aturan data & lokal
 
@@ -79,6 +95,8 @@ Rencana lengkap & keputusan: `docs/PLAN.md`. Patuhi file ini di setiap fase.
 - Instan waktu → `timestamptz`. Tanggal kalender (tanggal masuk/keluar) → `date`. Zona waktu dari `app_config.timezone` (default `Asia/Makassar`).
 - Batas simpan default 30 hari; umur hari ke-0 = tanggal terima. Ambang warna: kuning ≥ 21, oranye ≥ 26, merah ≥ 30.
 - Kelompok segregasi & zona = **usulan, wajib direview K3** — tampilkan label itu di UI terkait.
+- Kapasitas: konfigurasi aktif `SPU_BUILDING = SPU_BUILDING_OPTION_B` (default konservatif, 42 slot = 168 drum). Opsi A hanya alternatif.
+- Angka kapasitas **belum terverifikasi K3** (`K3_REVIEW.verified = false`). Containment belum dihitung. Jangan menampilkan kapasitas tanpa catatan ini di UI petugas/desain. `verified` hanya boleh diubah berdasarkan keputusan tertulis K3.
 - Kode janggal `A3330-1`, `B354-4` → `needs_review = true`.
 
 ## Aturan motion ("Living Logbook")

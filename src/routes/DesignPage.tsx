@@ -6,7 +6,7 @@ import { CountUp } from '@/components/ui/CountUp'
 import { IconArrowRight, IconCheck, IconPlus } from '@/components/ui/icons'
 import { LiveDot } from '@/components/ui/LiveDot'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { SPU_BUILDING, SPU_BUILDING_STRICT } from '@/config/spu-building'
+import { K3_REVIEW, SPU_BUILDING, SPU_BUILDING_OPTION_A } from '@/config/spu-building'
 import { WASTE_GROUPS } from '@/config/waste-groups'
 import { duration, ease, stepFade, stepSlide } from '@/design/motion'
 import { computeLayout } from '@/domain/capacity/computeLayout'
@@ -94,8 +94,9 @@ function StepDemo() {
 }
 
 export default function DesignPage() {
-  const layoutA = useMemo(() => computeLayout(SPU_BUILDING), [])
-  const layoutB = useMemo(() => computeLayout(SPU_BUILDING_STRICT), [])
+  // Kolom pertama = konfigurasi aktif (Opsi B, default konservatif); kolom kedua = Opsi A.
+  const layoutB = useMemo(() => computeLayout(SPU_BUILDING), [])
+  const layoutA = useMemo(() => computeLayout(SPU_BUILDING_OPTION_A), [])
   const [ratio, setRatio] = useState(0.43)
   const [kg, setKg] = useState(1240.5)
   const [updatedAt, setUpdatedAt] = useState(() => Date.now())
@@ -103,24 +104,24 @@ export default function DesignPage() {
   const rows: [string, string, string][] = [
     [
       'Interior bersih',
-      `${SPU_BUILDING.interior.length} × ${SPU_BUILDING.interior.width} m = ${fmt(layoutA.interiorArea)} m²`,
+      `${SPU_BUILDING.interior.length} × ${SPU_BUILDING.interior.width} m = ${fmt(layoutB.interiorArea)} m²`,
       '—',
     ],
     [
       'Area penyimpanan',
-      `${fmt(layoutA.storage.x1 - layoutA.storage.x0)} × ${fmt(layoutA.storage.y1 - layoutA.storage.y0)} m = ${fmt(layoutA.storage.area)} m²`,
+      `${fmt(layoutB.storage.x1 - layoutB.storage.x0)} × ${fmt(layoutB.storage.y1 - layoutB.storage.y0)} m = ${fmt(layoutB.storage.area)} m²`,
       '—',
     ],
-    ['Kedalaman baris', `${fmt(layoutA.rowDepth)} m`, '—'],
-    ['Blok per baris', String(layoutA.blocksPerRow), String(layoutB.blocksPerRow)],
-    ['Tapak pallet', String(layoutA.totals.footprints), String(layoutB.totals.footprints)],
-    ['Tingkat (1,03 m/tingkat)', String(layoutA.levels), String(layoutB.levels)],
-    ['Total slot pallet', String(layoutA.totals.slots), String(layoutB.totals.slots)],
-    ['Posisi drum', String(layoutA.totals.drumPositions), String(layoutB.totals.drumPositions)],
+    ['Kedalaman baris', `${fmt(layoutB.rowDepth)} m`, '—'],
+    ['Blok per baris', String(layoutB.blocksPerRow), String(layoutA.blocksPerRow)],
+    ['Tapak pallet', String(layoutB.totals.footprints), String(layoutA.totals.footprints)],
+    ['Tingkat (1,03 m/tingkat)', String(layoutB.levels), String(layoutA.levels)],
+    ['Total slot pallet', String(layoutB.totals.slots), String(layoutA.totals.slots)],
+    ['Posisi drum', String(layoutB.totals.drumPositions), String(layoutA.totals.drumPositions)],
     [
       'Lantai terpakai',
-      `${fmt(layoutA.totals.floorUsedM2)} m² (${fmt(layoutA.totals.floorUsedPctInterior, 1)}%)`,
       `${fmt(layoutB.totals.floorUsedM2)} m² (${fmt(layoutB.totals.floorUsedPctInterior, 1)}%)`,
+      `${fmt(layoutA.totals.floorUsedM2)} m² (${fmt(layoutA.totals.floorUsedPctInterior, 1)}%)`,
     ],
   ]
 
@@ -134,7 +135,7 @@ export default function DesignPage() {
 
       <Section title="Denah & kapasitas (mohon diverifikasi)">
         <div className="glass p-3 lg:p-5">
-          <LayoutPlan2D cfg={SPU_BUILDING} layout={layoutA} className="h-auto w-full" />
+          <LayoutPlan2D cfg={SPU_BUILDING} layout={layoutB} className="h-auto w-full" />
           <ul
             className="mt-3 flex flex-wrap gap-x-4 gap-y-2"
             aria-label="Legenda kelompok (usulan, wajib direview K3)"
@@ -156,12 +157,16 @@ export default function DesignPage() {
         </div>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[480px] text-left text-sm">
-            <caption className="sr-only">Perbandingan kapasitas Opsi A dan Opsi B</caption>
+            <caption className="sr-only">
+              Perbandingan kapasitas Opsi B (default) dan Opsi A
+            </caption>
             <thead className="text-fg-muted">
               <tr className="border-b border-line">
                 <th className="py-2 pr-3 font-medium">Besaran</th>
-                <th className="py-2 pr-3 font-medium">Opsi A (blok 2×2 pallet) — default</th>
-                <th className="py-2 font-medium">Opsi B (blok 1 pallet)</th>
+                <th className="py-2 pr-3 font-medium">
+                  Opsi B (blok 1 pallet) — default konservatif
+                </th>
+                <th className="py-2 font-medium">Opsi A (blok 2×2 pallet) — alternatif</th>
               </tr>
             </thead>
             <tbody className="tabular">
@@ -174,6 +179,26 @@ export default function DesignPage() {
               ))}
             </tbody>
           </table>
+        </div>
+        <div className="mt-3 rounded-xl border border-warn/40 bg-warn-soft p-4">
+          <p className="font-semibold text-warn">
+            {K3_REVIEW.verified ? 'Sudah diverifikasi K3' : 'BELUM diverifikasi K3'}
+          </p>
+          <p className="mt-1 text-sm">
+            Angka di atas memakai asumsi awal di config. Butir berikut wajib diverifikasi tim K3
+            sebelum dipakai operasional:
+          </p>
+          <ul className="mt-2 space-y-2 text-sm">
+            {K3_REVIEW.items.map((item) => (
+              <li key={item.topic}>
+                <span className="font-semibold">{item.topic}</span>{' '}
+                <span className="rounded bg-surface-strong px-1.5 py-0.5 font-mono text-[11px]">
+                  {item.status === 'belum-dihitung' ? 'BELUM DIHITUNG' : 'ASUMSI'}
+                </span>
+                <p className="text-fg-muted">{item.note}</p>
+              </li>
+            ))}
+          </ul>
         </div>
       </Section>
 

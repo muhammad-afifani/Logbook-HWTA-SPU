@@ -44,6 +44,11 @@ export interface BuildingConfig {
     /** Tinggi unit acuan per tingkat (drum 200 L). */
     referenceUnitHeight: number
   }
+  /**
+   * Curb/secondary containment di sepanjang dinding. SAAT INI hanya diletakkan di dalam
+   * pita jarak dinding (`clearance.wall`) untuk visual — TIDAK mengurangi slot dan
+   * TIDAK ada cek volume tampung. Lihat `K3_REVIEW`.
+   */
   curb: { height: number; thickness: number }
   /**
    * Penugasan blok ke kelompok segregasi, per baris dari barat (pintu) ke timur.
@@ -52,7 +57,11 @@ export interface BuildingConfig {
   zoneAssignment: { north: GroupCode[]; south: GroupCode[] }
 }
 
-export const SPU_BUILDING: BuildingConfig = {
+/**
+ * Opsi A — blok 2x2 pallet, gang 0,6 m antar blok: 32 tapak x 3 tingkat = 96 slot = 384 drum.
+ * ALTERNATIF (bukan default): tafsiran "blok 2x2" yang lebih longgar.
+ */
+export const SPU_BUILDING_OPTION_A: BuildingConfig = {
   site: 'SPU',
   interior: { length: 16, width: 9, height: 5 },
   clearance: { wall: 1.0, roof: 1.0 },
@@ -74,8 +83,49 @@ export const SPU_BUILDING: BuildingConfig = {
   },
 }
 
-/** Opsi B (tafsiran ketat): blok = 2x2 drum = 1 pallet. Dipakai untuk perbandingan. */
-export const SPU_BUILDING_STRICT: BuildingConfig = {
-  ...SPU_BUILDING,
+/**
+ * Opsi B — DEFAULT KONSERVATIF. Tafsiran ketat "blok 2x2 kemasan" = 1 pallet (4 drum),
+ * gang 0,6 m antar pallet: 14 tapak x 3 tingkat = 42 slot = 168 drum.
+ */
+export const SPU_BUILDING_OPTION_B: BuildingConfig = {
+  ...SPU_BUILDING_OPTION_A,
   block: { palletsX: 1, palletsY: 1 },
 }
+
+/** Konfigurasi aktif aplikasi. Ganti ke OPTION_A hanya setelah keputusan K3. */
+export const SPU_BUILDING: BuildingConfig = SPU_BUILDING_OPTION_B
+
+/**
+ * Status verifikasi K3. Angka kapasitas BELUM terverifikasi: nilai di atas adalah asumsi
+ * awal. Ditampilkan di UI sampai `verified = true` diisi berdasarkan keputusan tertulis K3.
+ */
+export const K3_REVIEW = {
+  verified: false,
+  items: [
+    {
+      topic: 'Area & volume secondary containment',
+      status: 'belum-dihitung',
+      note: 'Curb hanya digambar di dalam pita jarak dinding 1 m. Luasnya tidak dikurangkan dari area simpan dan volume tampungnya (mis. ≥ 110% kemasan terbesar) tidak dicek. Spill pallet / sump tidak dimodelkan.',
+    },
+    {
+      topic: 'Lebar lorong minimum & gang antar blok',
+      status: 'asumsi',
+      note: 'Dipakai lorong utama 1,5 m dan gang 0,6 m (gang orang Kepdal 01/1995). Kebutuhan alat angkut (hand pallet/forklift, radius putar) belum diverifikasi.',
+    },
+    {
+      topic: 'Jalur evakuasi',
+      status: 'asumsi',
+      note: 'Lorong utama dianggap jalur evakuasi (minimum 1,2 m) dari pintu roller ke pintu darurat. Jarak tempuh, rambu, dan akses APAR belum diverifikasi.',
+    },
+    {
+      topic: 'Tinggi tumpukan maksimal',
+      status: 'asumsi',
+      note: 'Maksimal 3 tingkat drum beralas pallet (1,03 m/tingkat = 3,09 m) dengan jarak ke atap 1 m. Kekuatan pallet/rak dan kemasan non-drum belum diverifikasi.',
+    },
+    {
+      topic: 'Jarak dinding & area bebas pintu',
+      status: 'asumsi',
+      note: 'Jarak dinding 1 m; area penerimaan/bebas pintu 3 m dari dinding pintu roller.',
+    },
+  ],
+} as const

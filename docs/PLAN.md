@@ -2,6 +2,9 @@
 
 > **Amandemen 1 (25/10/2026) sudah digabung ke dokumen ini.** Ringkasannya ada di §0. Bagian
 > yang berubah diberi tanda **[A1]**.
+>
+> **Keputusan K1 (25/10/2026), persetujuan bersyarat Fase 0**, juga sudah digabung. Bagian
+> yang berubah diberi tanda **[K1]**. Ringkasannya ada di §0b.
 
 ## 0. Amandemen 1 — ringkasan
 
@@ -24,6 +27,30 @@
 7. **RLS:**
    - `anon` tanpa SELECT ke tabel mentah. Publik hanya membaca RPC agregat tersaring.
    - Test RLS jalan otomatis setiap kali skema berubah.
+
+## 0b. Keputusan K1 — ringkasan
+
+1. **Login petugas: email + password.**
+   - Akun dibuat admin di Supabase Dashboard (Authentication → Add user, _auto-confirm_).
+   - Petugas **tidak** diundang sebagai anggota organisasi Supabase.
+   - Tidak ada magic link, OTP email, atau email reset password. Reset password dilakukan admin di Dashboard.
+   - Catatan: SMTP bawaan Supabase hanya mengirim ke anggota tim organisasi. Aplikasi tidak boleh bergantung padanya untuk alur petugas.
+2. **Backup:**
+   - Workflow berjalan di repo **privat** backup.
+   - Enkripsi `age` hanya memakai **kunci publik** (recipient) di workflow.
+   - Kunci privat **tidak** disimpan di repo mana pun maupun di GitHub Secrets. Kunci itu disimpan offline oleh pemilik.
+   - Uji restore wajib memakai kunci offline tersebut, sehingga dilakukan manual mengikuti prosedur terdokumentasi, bukan otomatis di CI.
+3. **Kapasitas:**
+   - Default konservatif = **Opsi B (42 slot = 168 drum)**. Opsi A tetap ada di config sebagai alternatif.
+   - Angka ini **belum terverifikasi K3**: area/volume containment, lebar lorong minimum, jalur evakuasi, dan tinggi tumpukan maksimal.
+   - Containment **belum dihitung** (rincian di §5).
+4. **Gitleaks:**
+   - Repo milik akun pribadi `muhammad-afifani`. Menurut README dan kode gitleaks-action, akun pribadi tidak butuh `GITLEAKS_LICENSE`.
+   - Tetapi action itu tetap mewajibkan lisensi kalau panggilan API pengecekan tipe akun gagal.
+   - Karena itu CI memakai **CLI gitleaks v8.30.1** (lisensi MIT, versi dan SHA-256 dipin), tanpa pengecekan lisensi sama sekali.
+5. **3D interior & what-if: khusus petugas.**
+   - Peta site publik tidak menampilkan ikon, label, atau data jumlah drum/stok.
+   - Dijamin oleh 3 lapis (§7): RPC `public_status()`, parser whitelist `src/lib/api/public-status.ts`, dan aturan ESLint batas publik (diuji di `src/test/public-boundary.test.ts`).
 
 ## Konteks
 
@@ -68,30 +95,19 @@ Setiap pertanyaan punya **default**. Kalau rencana disetujui tanpa jawaban, saya
    - Batas bisa diubah global di config dan per jenis limbah.
    - Catatan: PP 22/2021 mengizinkan 90/180/365 hari. Angka 30 hari saya anggap kebijakan internal yang lebih ketat.
 4. **Arti "blok 2×2" untuk penumpukan?** Ini yang paling berpengaruh ke angka kapasitas (lihat §5).
-   - Default **Opsi A**: blok = 2×2 pallet, gang antar blok 0,6 m.
-   - Opsi B (tafsiran ketat Kepdal 01/1995): blok = 2×2 drum = 1 pallet, gang 0,6 m antar pallet.
+   - **[K1] Diputuskan:** default **Opsi B** (tafsiran ketat Kepdal 01/1995): blok = 2×2 drum = 1 pallet, gang 0,6 m antar pallet.
+   - Opsi A (blok = 2×2 pallet) tetap di config sebagai alternatif.
 5. **Posisi pintu roller dan pintu darurat?** Default: pintu roller di dinding pendek barat (lebar 4 m). Pintu darurat di dinding pendek timur, segaris dengan lorong utama.
-6. **Alokasi zona per kelompok?** Default 1 blok (4 tapak × 3 tingkat = 12 slot = 48 drum) per kelompok G1–G8. Kalau oli (G1) jauh lebih dominan, saya bisa geser G7/G8 ke rak kecil supaya G1 dapat 2 blok. Mohon perkiraan volume per kelompok.
+6. **Alokasi zona per kelompok?** [K1] Dengan Opsi B, 7 tapak per baris dibagi ke 4 kelompok: G1, G2, G3, G4, G6, G8 masing-masing 2 tapak (6 slot = 24 drum), G5 dan G7 masing-masing 1 tapak (3 slot = 12 drum). Kalau oli (G1) jauh lebih dominan, saya bisa geser G7/G8 ke rak kecil supaya G1 dapat 2 blok. Mohon perkiraan volume per kelompok.
 7. **Saran combobox Sumber/Entity vs privasi.** Saran dari "data sebelumnya" yang tampil di form publik otomatis membuka daftar entity ke publik. Ini bertentangan dengan agregat entity yang disembunyikan di dashboard. Default: saran hanya diambil dari tabel `suggestion_terms` yang sudah **disetujui petugas**. Nilai baru dari kiriman yang diterima masuk sebagai "usulan" dan bisa disetujui sekali klik.
 8. **Foto maksimal 3: per kiriman atau per item?** Default **per kiriman** (total 3).
 9. **Satu pallet boleh berisi drum dari lot berbeda?** Default boleh, asal kode limbah dan jenis kemasannya sama (top-up pallet parsial). Kalau tidak boleh, kapasitas efektif turun.
-10. **Siapa yang boleh login?** Default: hanya email yang sudah diundang admin (`shouldCreateUser: false`). Admin pertama dibuat lewat skrip seed atau SQL di README.
+10. **Siapa yang boleh login?** [K1] Hanya akun email + password yang dibuat admin di Supabase Dashboard (Add user, auto-confirm). Pendaftaran mandiri (sign up) dimatikan. Admin pertama dibuat lewat skrip seed atau SQL di README.
 11. **Format logbook cetak.** Saya pakai kolom yang Anda sebut, ditambah no manifest. Format final menunggu konfirmasi tim K3, dan template-nya dibuat terisolasi supaya mudah diubah.
 12. **Tanggal masuk / tanggal keluar** disimpan sebagai `date` (tanggal kalender, bukan instan). Semua _timestamp_ (waktu kirim, verifikasi, audit) disimpan sebagai `timestamptz`. Mohon konfirmasi bahwa ini sesuai maksud "semua timestamp timestamptz".
-13. **[A1] Login petugas dengan SMTP bawaan Supabase.**
-    - SMTP bawaan hanya mengirim email ke alamat **anggota tim organisasi Supabase**, dengan batas sekitar 2 email/jam.
-    - Opsi gratis tanpa layanan baru:
-      - (a) **Default:** setiap petugas diundang sebagai anggota tim org Supabase dengan peran paling rendah (read-only), lalu login memakai magic link/OTP.
-      - Konsekuensi opsi (a): petugas juga bisa membuka Supabase Studio dalam mode baca.
-      - (b) Login email + password yang dibuat admin, tanpa email.
-    - SMTP pihak ketiga dengan kuota gratis (mis. Brevo/Resend) **tidak** saya tambahkan tanpa izin.
-14. **[A1] Visual 3D interior & simulasi "Muat atau tidak?" untuk publik?** Visual 3D memperlihatkan jumlah drum per jenis, jadi bertentangan dengan aturan "publik hanya persen".
-    - Default: 3D interior, what-if, hologram pending, dan alert **khusus petugas**.
-    - Publik tetap mendapat peta site 3D (tanpa data stok) dan cincin kapasitas %.
-15. **[A1] Lokasi workflow backup.**
-    - Default: workflow berjalan **di repo privat backup** sehingga log, secret DB, dan kunci tetap privat. Templatenya disimpan di repo ini (`ops/backup/`).
-    - Alternatif sesuai teks amandemen: workflow di repo publik yang push ke repo privat memakai fine-grained PAT (Contents: write, hanya repo itu). Kelemahannya: log job ada di repo publik.
-    - Keduanya gratis. Mana yang Anda pilih?
+13. **[A1→K1] Login petugas — DIPUTUSKAN:** email + password, akun dibuat admin, tanpa undangan org, tanpa email apa pun. Lihat §0b.1.
+14. **[A1→K1] 3D interior & what-if — DIPUTUSKAN:** khusus petugas. Peta site publik tanpa data stok. Lihat §0b.5.
+15. **[A1→K1] Lokasi workflow backup — DIPUTUSKAN:** di repo privat, hanya kunci publik `age`. Lihat §0b.2.
 
 ## 2. Asumsi
 
@@ -150,7 +166,7 @@ Setiap pertanyaan punya **default**. Kalau rencana disetujui tanpa jawaban, saya
 │  ├─ features/
 │  │  ├─ submit-form/   (Wizard, StepSender, StepItems, StepConfirm, WastePicker, SuccessTicket)
 │  │  ├─ status-check/
-│  │  ├─ auth/          (MagicLink + kode OTP 6 digit, AuthCallback, RequireRole)
+│  │  ├─ auth/          (LoginForm email + password, RequireRole)  [K1]
 │  │  ├─ dashboard/     (public widgets, charts)
 │  │  ├─ officer/       (queue, verify, outbound, logbook, lots, master, export, print, alerts)
 │  │  ├─ spu3d/         (LAZY: Scene, models/, WhatIf, InfoSheet, Fallback2D.svg)
@@ -239,13 +255,32 @@ Fungsi di bawah ini **pindah ke petugas** (`authenticated` + cek `is_officer()`)
 
 ## 5. Perhitungan kapasitas (mohon diverifikasi)
 
+> **[K1] Default konservatif = Opsi B: 42 slot = 168 drum.** Opsi A (96 slot) hanya alternatif di
+> config (`SPU_BUILDING_OPTION_A`). Konfigurasi aktif: `SPU_BUILDING = SPU_BUILDING_OPTION_B`.
+>
+> **Angka di bawah BELUM terverifikasi K3.** Area/volume containment, lebar lorong minimum, jalur
+> evakuasi, dan tinggi tumpukan maksimal masih memakai asumsi config dan wajib diverifikasi tim K3
+> (`K3_REVIEW` di `src/config/spu-building.ts`, ditampilkan di halaman `#/desain`).
+>
+> **Apakah containment sudah dihitung? Belum.**
+>
+> - Curb setinggi 0,15 m hanya _diletakkan_ di dalam pita jarak dinding 1 m untuk visual.
+> - Luasnya tidak dikurangkan dari area simpan.
+> - Tidak ada cek volume tampung (misalnya ≥ 110% kemasan terbesar atau ≥ 10% total volume).
+> - Spill pallet/sump tidak dimodelkan. Kalau dipakai, tinggi tingkat bertambah dan jumlah tingkat bisa turun.
+>
+> Status asumsi yang lain:
+>
+> - Lorong utama 1,5 m, gang 0,6 m, jalur evakuasi ≥ 1,2 m, dan maksimal 3 tingkat dengan jarak atap 1 m **sudah dipakai dalam hitungan**, tetapi hanya sebagai asumsi.
+> - Kebutuhan alat angkut, jarak tempuh evakuasi, akses APAR, dan kekuatan pallet **belum** diverifikasi.
+
 Dihitung oleh `computeLayout(config)` (fungsi murni, ada unit test).
 
 1. **Interior bersih:** 16,0 × 9,0 m = **144 m²**. Tinggi 5,0 m.
 2. **Jarak dinding 1,0 m** di semua sisi → area dalam 14,0 × 7,0 m (X 1–15, Y 1–8).
 3. **Area bebas pintu dan penerimaan:** X 0–3,0 m. Pintu roller lebar 4 m di dinding barat. Area penyimpanan menjadi X 3,0–15,0 = **12,0 × 7,0 m = 84 m²**.
 4. **Lorong utama dan jalur evakuasi** di tengah, lebar 1,5 m (Y 3,75–5,25), dari pintu roller sampai pintu darurat timur. Sisa dua baris penyimpanan, masing-masing sedalam (7,0 − 1,5)/2 = **2,75 m**.
-5. **Opsi A (default), blok 2×2 pallet** (2,4 × 2,4 m), gang antar blok 0,6 m:
+5. **Opsi A (alternatif), blok 2×2 pallet** (2,4 × 2,4 m), gang antar blok 0,6 m:
    - Arah X: 4 blok → 4×2,4 + 3×0,6 = **11,4 m ≤ 12,0** (sisa 0,6 m). 5 blok = 14,4 m, tidak muat.
    - Arah Y: 2,4 ≤ 2,75 (sisa 0,35 m).
    - Hasil: 2 baris × 4 blok = **8 blok = 32 tapak pallet**.
@@ -253,14 +288,15 @@ Dihitung oleh `computeLayout(config)` (fungsi murni, ada unit test).
    - 3 tingkat = 3,09 m ✓.
    - 4 tingkat = 4,12 m ✗.
    - Jadi maksimal **3 tingkat** (sesuai aturan 3 lapis).
-7. **Total slot:** 32 × 3 = **96 slot pallet = 384 posisi drum** (≈ 76,8 m³ nominal).
-8. **Pemakaian lantai:** 32 × 1,44 = **46,08 m²**, yaitu 32,0% dari interior atau 54,9% dari area penyimpanan.
-9. **Per zona** (1 blok per kelompok): 4 tapak × 3 = **12 slot = 48 drum** per kelompok G1–G8.
-10. **Opsi B (tafsiran ketat), blok 1 pallet** dengan gang 0,6 m:
-    - Arah X: 7 pallet (7×1,2 + 6×0,6 = 12,0 m).
-    - Arah Y: 1 pallet per baris.
-    - Hasil: 14 tapak × 3 = **42 slot = 168 drum**, lantai terpakai 14,0%.
-    - 14 tapak tidak terbagi rata ke 8 kelompok.
+7. **Total slot Opsi A:** 32 × 3 = 96 slot pallet = 384 posisi drum (≈ 76,8 m³ nominal).
+8. **Pemakaian lantai Opsi A:** 32 × 1,44 = 46,08 m², yaitu 32,0% dari interior atau 54,9% dari area penyimpanan.
+9. **Per zona Opsi A** (1 blok per kelompok): 4 tapak × 3 = 12 slot = 48 drum per kelompok G1–G8.
+10. **Opsi B — DEFAULT [K1], blok 1 pallet** dengan gang 0,6 m antar pallet:
+    - Arah X: 7 pallet → 7×1,2 + 6×0,6 = **12,0 m** (pas dengan panjang area simpan).
+    - Arah Y: 1 pallet per baris (1,2 ≤ 2,75).
+    - Hasil: 2 baris × 7 = **14 tapak × 3 tingkat = 42 slot = 168 drum**.
+    - Lantai terpakai 14 × 1,44 = **20,16 m²**, yaitu 14,0% dari interior atau 24,0% dari area penyimpanan.
+    - Per zona: G1, G2, G3, G4, G6, G8 = 6 slot (24 drum). G5, G7 = 3 slot (12 drum).
 
 Indikator "slot terpakai %" = (slot terisi + slot terkunci di atas kemasan yang tidak bisa ditumpuk) / total slot aktif.
 
@@ -286,7 +322,7 @@ Indikator "slot terpakai %" = (slot terisi + slot terkunci di atas kemasan yang 
     ◀── {ticket, uploadUrls} ── kompres foto (≤1280px, WebP) → PUT ke bucket privat
 [Cek status] ─▶ Edge fn check-status (rate limit) → {status, alasan, tanggal, ringkasan item} tanpa PII
 
-[Petugas] magic link / OTP → supabase-js (JWT) → RLS officer
+[Petugas] email + password (akun dibuat admin) → supabase-js (JWT) → RLS officer   [K1]
     verify_submission() ─▶ lots + stock_movements(inbound) + slot_units + audit_log
     create_outbound()   ─▶ outbound + items + stock_movements(outbound) + slot_units.removed_at
     foto: storage.createSignedUrl(60 dtk) — policy storage hanya officer
@@ -298,7 +334,8 @@ Indikator "slot terpakai %" = (slot terisi + slot terkunci di atas kemasan yang 
 
 [GitHub Action keepalive] cron tiap 3 hari → POST /rest/v1/rpc/ping (anon key)
 [A1 Backup harian, repo privat] pg_dump --data-only tabel utama → age (kunci publik) → commit
-    → hapus file > 90 hari dan padatkan riwayat (orphan commit) → uji restore mingguan ke Postgres kosong
+    → hapus file > 90 hari dan padatkan riwayat (orphan commit)
+    [K1] kunci privat age offline → uji restore MANUAL berkala ke Postgres kosong (prosedur terdokumentasi)
 ```
 
 Antrean offline:
@@ -309,8 +346,15 @@ Antrean offline:
 ## 7. Keputusan teknis penting
 
 - **Routing:** `HashRouter`. `base` Vite diambil dari `VITE_BASE` (CI mengisi `/${repo}/`).
-  - Callback magic link memakai **PKCE** dengan `redirectTo = <origin><base>?auth=callback` (query, bukan hash) supaya tidak bentrok dengan hash router.
-  - Ada juga input **kode OTP 6 digit** sebagai cadangan kalau link dibuka di perangkat lain.
+  - **[K1] Auth petugas = `signInWithPassword`.** Tidak ada redirect/callback email, jadi tidak ada bentrok dengan hash router.
+  - Di Supabase: sign up dimatikan, user dibuat admin dengan auto-confirm.
+  - Lupa password → hubungi admin, yang me-reset di Dashboard. Tidak ada email reset.
+- **[K1] Batas data publik (peta site & dashboard publik)**, dijamin 3 lapis:
+  1. DB: `anon` hanya punya EXECUTE pada `public_status()` dan `ping()`, tanpa SELECT tabel. Diuji pgTAP di Fase 1. Query pemeriksanya ada di `supabase/tests/sql/anon_no_select.sql`.
+  2. Klien: `parsePublicStatus()` di `src/lib/api/public-status.ts` adalah whitelist `capacityPct`, `hasWaste`, `updatedAt`. Field lain dibuang. Ada unit test.
+  3. Lint: `eslint.config.js` (`PUBLIC_BOUNDARY_PATTERNS`) melarang `src/features/site3d/**` dan halaman publik mengimpor modul petugas, `spu3d`, supabase, atau API selain public-status. Diuji di `src/test/public-boundary.test.ts`.
+  - Klik SPU di peta site → publik melihat sheet nama bangunan + persen kapasitas. Petugas yang login mendapat tombol ke route `/petugas/3d` (dijaga `RequireRole`), bukan import langsung.
+- **[K1] Gitleaks:** CLI v8.30.1 dengan SHA-256 dipin di `.github/workflows/secret-scan.yml`, opsi `--redact`. Bukan gitleaks-action, sehingga tidak ada pengecekan lisensi.
 - **Anggaran bundle form** (≤ 180 KB gzip):
   - Route form **tidak** mengimpor supabase-js, three, recharts, atau zustand-3D. Form cukup memakai `fetch` ke Edge Function.
   - Motion dipakai dengan `LazyMotion` + `domAnimation` + komponen `m`.
@@ -347,7 +391,7 @@ Di setiap akhir fase saya menjalankan `pnpm lint && pnpm typecheck && pnpm test 
    - `spu-building.ts` + `computeLayout` + test angka §5.
    - `.env.example`, CI lint/test/build + size-limit.
 1. **DB.**
-   - Migrasi, seed (22 jenis limbah, 8 kelompok, kemasan, config, 96 slot).
+   - Migrasi, seed (22 jenis limbah, 8 kelompok, kemasan, config, 42 slot Opsi B [K1]).
    - RLS, trigger append-only + audit, RPC, broadcast realtime, bucket storage + policy.
    - Edge Functions `submit-waste`, `check-status`, `request-upload` (test Deno untuk validasi, normalisasi telepon, dan ticket).
    - Test pgTAP RLS: anon tidak bisa baca/tulis tabel, officer tidak bisa UPDATE/DELETE data terverifikasi, RPC publik tanpa PII.
@@ -355,20 +399,24 @@ Di setiap akhir fase saya menjalankan `pnpm lint && pnpm typecheck && pnpm test 
    - Workflow `db-tests.yml` berjalan di setiap push/PR yang mengubah `supabase/**`, plus jadwal mingguan.
    - **[A1]** Seed uji coba hanya data dummy, misalnya pengirim "Uji Coba 01" dengan telepon `+62 812-0000-0001`.
    - Kolom aktor (`created_by`, `verified_by`) tidak memakai FK ke `auth.users`. Nama petugas disimpan sebagai snapshot, agar restore ke DB kosong tidak gagal.
-   - Auth magic link + OTP + RequireRole.
+   - Auth email + password (`signInWithPassword`) + RequireRole. Sign up dimatikan. README menjelaskan cara admin membuat akun dan me-reset password [K1].
 2. **Form publik:** wizard 3 langkah, picker bottom-sheet, combobox, stepper, kompres foto, draft otomatis, antrean kirim ulang, layar sukses (path draw + kartu tiket), cek status.
 3. **Officer:** antrean verifikasi (kartu swipe + konfirmasi), badge selisih, form keluar FIFO, logbook dengan filter/pencarian, daftar lot + progress umur, master data, export CSV, tampilan cetak, alert.
 4. **Dashboard realtime [A1]:** publik = cincin kapasitas % + status ada/tidak ada limbah + LiveDot. Petugas = KPI count-up (stok kg, lot aktif, mendekati batas, masuk/keluar bulan ini), grafik Recharts (stok per jenis, tren masuk vs keluar, donut kelompok, distribusi umur), alert. Keduanya memakai broadcast + reload RPC.
-5. **3D interior:** model prosedural (drum instanced, pallet, IBC, jumbo bag, jerigen, box, rak tabung), zona lantai, curb, pintu roller, ventilasi, signage, APAR, hologram pending, animasi verifikasi/keluar, panel "Muat atau tidak?", what-if ghost, info sheet, preset kamera, atap transparan, siang/malam, fallback SVG 2D, unit test planner.
-6. **Peta site 3D:** layout placeholder di JSON (sungai, jetty, process area, akomodasi, kantor, SPU, jalan, pagar, gerbang, pohon), air bergelombang (shader ringan), perahu, uap, lampu malam, slider siang-malam, hotspot yang memudar menurut jarak, fly-to + bottom sheet, transisi ke interior, intro sinematik yang bisa dilewati.
+5. **3D interior (khusus petugas [K1], route `/petugas/3d`):** model prosedural (drum instanced, pallet, IBC, jumbo bag, jerigen, box, rak tabung), zona lantai, curb, pintu roller, ventilasi, signage, APAR, hologram pending, animasi verifikasi/keluar, panel "Muat atau tidak?", what-if ghost, info sheet, preset kamera, atap transparan, siang/malam, fallback SVG 2D, unit test planner.
+6. **Peta site 3D (publik, tanpa ikon/label/angka drum atau stok [K1]):** layout placeholder di JSON (sungai, jetty, process area, akomodasi, kantor, SPU, jalan, pagar, gerbang, pohon), air bergelombang (shader ringan), perahu, uap, lampu malam, slider siang-malam, hotspot yang memudar menurut jarak (hanya nama bangunan), fly-to + bottom sheet, transisi ke interior hanya untuk petugas yang login, intro sinematik yang bisa dilewati.
 7. **Polish:** motion pass, performance pass (Lighthouse CI mobile ≥ 90/95), PWA, a11y (axe di Playwright), tes Playwright di 4 viewport, workflow deploy Pages + keepalive, README.
    - **[A1] Backup:**
      - Workflow harian `pg_dump --data-only` untuk: submissions, submission_items, lots, stock_movements, outbound, outbound_items, audit_log, waste_types, packaging_types, app_config.
      - Ditambah tabel yang dibutuhkan agar restore konsisten: profiles, waste_groups, submission_photos, outbound_attachments, pallet_slots, slot_units.
-     - Dienkripsi dengan `age` (kunci publik di workflow, kunci privat hanya di tangan Anda).
+     - Dienkripsi dengan `age`. Workflow **hanya** memegang kunci publik (recipient `age1…`).
+     - Kunci privat **tidak** disimpan di repo atau GitHub Secrets. Kunci itu disimpan offline oleh pemilik, misalnya di password manager dan cetak kertas di lemari terkunci [K1].
      - Disimpan di repo privat. Retensi 90 hari dengan pemadatan riwayat.
      - `ops/backup/restore.sh` + dokumen uji restore ke database kosong (migrasi → restore → cek jumlah baris & `SUM` stok).
-     - Uji restore otomatis mingguan di CI repo privat.
+     - [K1] Uji restore **manual** memakai kunci privat offline:
+       - Prosedur langkah demi langkah ada di `ops/backup/RESTORE.md`, termasuk mengisi log hasil uji.
+       - Jadwal saran: setelah setup, lalu tiap bulan.
+     - CI repo privat hanya bisa memeriksa yang tidak butuh kunci privat: file berawalan `age-encryption.org/v1`, ukuran > 0, dan jumlah baris per tabel sebelum enkripsi (tanpa isi data).
    - Catatan: file storage (foto) tidak ikut backup tabel. Kalau perlu, ekspor terpisah yang juga terenkripsi (ditanyakan di Fase 7).
 
 ## 9. Risiko dan mitigasi

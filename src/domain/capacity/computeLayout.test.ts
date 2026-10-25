@@ -1,4 +1,9 @@
-import { SPU_BUILDING, SPU_BUILDING_STRICT } from '@/config/spu-building'
+import {
+  K3_REVIEW,
+  SPU_BUILDING,
+  SPU_BUILDING_OPTION_A,
+  SPU_BUILDING_OPTION_B,
+} from '@/config/spu-building'
 import { computeLayout, distributeZones, fitCount } from './computeLayout'
 
 describe('fitCount', () => {
@@ -25,10 +30,25 @@ describe('distributeZones', () => {
   })
 })
 
-describe('computeLayout — Opsi A (default, blok 2x2 pallet)', () => {
-  const layout = computeLayout(SPU_BUILDING)
+describe('konfigurasi aktif', () => {
+  it('default konservatif = Opsi B', () => {
+    expect(SPU_BUILDING).toBe(SPU_BUILDING_OPTION_B)
+  })
 
-  it('area interior dan area penyimpanan sesuai rencana', () => {
+  it('angka kapasitas ditandai belum terverifikasi K3, containment belum dihitung', () => {
+    expect(K3_REVIEW.verified).toBe(false)
+    const containment = K3_REVIEW.items.find((i) => i.topic.includes('containment'))
+    expect(containment?.status).toBe('belum-dihitung')
+  })
+})
+
+describe.each([
+  ['Opsi A', SPU_BUILDING_OPTION_A],
+  ['Opsi B', SPU_BUILDING_OPTION_B],
+])('computeLayout — invarian geometri %s', (_name, cfg) => {
+  const layout = computeLayout(cfg)
+
+  it('area interior dan area penyimpanan', () => {
     expect(layout.interiorArea).toBe(144)
     expect(layout.inner).toEqual({ x0: 1, y0: 1, x1: 15, y1: 8 })
     expect(layout.storage).toMatchObject({ x0: 3, x1: 15, y0: 1, y1: 8, area: 84 })
@@ -37,11 +57,74 @@ describe('computeLayout — Opsi A (default, blok 2x2 pallet)', () => {
     expect(layout.rowDepth).toBeCloseTo(2.75)
   })
 
-  it('8 blok, 32 tapak pallet, 3 tingkat, 96 slot, 384 drum', () => {
-    expect(layout.blocksPerRow).toBe(4)
+  it('tidak ada blok di luar area simpan atau di lorong', () => {
+    for (const b of layout.blocks) {
+      expect(b.x0).toBeGreaterThanOrEqual(layout.storage.x0)
+      expect(b.x1).toBeLessThanOrEqual(layout.storage.x1)
+      expect(b.y0).toBeGreaterThanOrEqual(layout.storage.y0)
+      expect(b.y1).toBeLessThanOrEqual(layout.storage.y1)
+      const overlapsAisle = b.y0 < layout.mainAisle.y1 && b.y1 > layout.mainAisle.y0
+      expect(overlapsAisle).toBe(false)
+    }
+  })
+
+  it('gang antar blok minimal 0,6 m', () => {
+    for (const row of ['north', 'south'] as const) {
+      const blocks = layout.blocks.filter((b) => b.row === row).sort((a, b) => a.x0 - b.x0)
+      for (let i = 1; i < blocks.length; i++) {
+        expect(blocks[i]!.x0 - blocks[i - 1]!.x1).toBeGreaterThanOrEqual(0.6 - 1e-9)
+      }
+    }
+  })
+
+  it('3 tingkat, tumpukan tertinggi >= 1 m di bawah atap', () => {
     expect(layout.levelHeight).toBeCloseTo(1.03)
     expect(layout.usableHeight).toBe(4)
     expect(layout.levels).toBe(3)
+    expect(cfg.interior.height - layout.levels * layout.levelHeight).toBeGreaterThanOrEqual(1)
+  })
+
+  it('id slot unik dan tanpa peringatan', () => {
+    expect(new Set(layout.slots.map((s) => s.id)).size).toBe(layout.slots.length)
+    expect(layout.warnings).toEqual([])
+  })
+})
+
+describe('computeLayout — Opsi B (default konservatif, blok 1 pallet)', () => {
+  const layout = computeLayout(SPU_BUILDING_OPTION_B)
+
+  it('14 tapak, 42 slot, 168 drum, lantai 14%', () => {
+    expect(layout.blocksPerRow).toBe(7)
+    expect(layout.totals).toEqual({
+      blocks: 14,
+      footprints: 14,
+      slots: 42,
+      drumPositions: 168,
+      floorUsedM2: 20.16,
+      floorUsedPctInterior: 14,
+      floorUsedPctStorage: 24,
+    })
+  })
+
+  it('slot per kelompok: 6 untuk G1–G4, G6, G8; 3 untuk G5 dan G7', () => {
+    expect(layout.slotsPerZone).toEqual({
+      G1: 6,
+      G2: 6,
+      G3: 6,
+      G5: 3,
+      G4: 6,
+      G6: 6,
+      G8: 6,
+      G7: 3,
+    })
+  })
+})
+
+describe('computeLayout — Opsi A (alternatif, blok 2x2 pallet)', () => {
+  const layout = computeLayout(SPU_BUILDING_OPTION_A)
+
+  it('8 blok, 32 tapak pallet, 96 slot, 384 drum', () => {
+    expect(layout.blocksPerRow).toBe(4)
     expect(layout.totals).toEqual({
       blocks: 8,
       footprints: 32,
@@ -54,57 +137,7 @@ describe('computeLayout — Opsi A (default, blok 2x2 pallet)', () => {
   })
 
   it('12 slot per kelompok G1–G8', () => {
-    expect(layout.slotsPerZone).toEqual({
-      G1: 12,
-      G2: 12,
-      G3: 12,
-      G4: 12,
-      G5: 12,
-      G6: 12,
-      G7: 12,
-      G8: 12,
-    })
-  })
-
-  it('tidak ada blok yang keluar dari area simpan atau masuk lorong', () => {
-    for (const b of layout.blocks) {
-      expect(b.x0).toBeGreaterThanOrEqual(layout.storage.x0)
-      expect(b.x1).toBeLessThanOrEqual(layout.storage.x1)
-      expect(b.y0).toBeGreaterThanOrEqual(layout.storage.y0)
-      expect(b.y1).toBeLessThanOrEqual(layout.storage.y1)
-      const overlapsAisle = b.y0 < layout.mainAisle.y1 && b.y1 > layout.mainAisle.y0
-      expect(overlapsAisle).toBe(false)
-    }
-  })
-
-  it('gang antar blok minimal 0,6 m', () => {
-    const north = layout.blocks.filter((b) => b.row === 'north').sort((a, b) => a.x0 - b.x0)
-    for (let i = 1; i < north.length; i++) {
-      expect(north[i]!.x0 - north[i - 1]!.x1).toBeGreaterThanOrEqual(0.6 - 1e-9)
-    }
-  })
-
-  it('tumpukan tertinggi tetap >= 1 m di bawah atap', () => {
-    const top = layout.levels * layout.levelHeight
-    expect(top).toBeCloseTo(3.09)
-    expect(SPU_BUILDING.interior.height - top).toBeGreaterThanOrEqual(1)
-  })
-
-  it('id slot unik dan tanpa peringatan', () => {
-    expect(new Set(layout.slots.map((s) => s.id)).size).toBe(layout.slots.length)
-    expect(layout.warnings).toEqual([])
-  })
-})
-
-describe('computeLayout — Opsi B (tafsiran ketat, blok 1 pallet)', () => {
-  const layout = computeLayout(SPU_BUILDING_STRICT)
-
-  it('14 tapak, 42 slot, 168 drum, lantai 14%', () => {
-    expect(layout.blocksPerRow).toBe(7)
-    expect(layout.totals.footprints).toBe(14)
-    expect(layout.totals.slots).toBe(42)
-    expect(layout.totals.drumPositions).toBe(168)
-    expect(layout.totals.floorUsedPctInterior).toBe(14)
+    expect(Object.values(layout.slotsPerZone)).toEqual(Array(8).fill(12))
   })
 })
 

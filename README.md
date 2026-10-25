@@ -14,14 +14,14 @@ petugas, stok append-only, dashboard realtime, visual 3D interior, dan peta site
 
 ## Stack (100% gratis, kecuali langganan Claude Code)
 
-| Kebutuhan        | Layanan                                                           |
-| ---------------- | ----------------------------------------------------------------- |
-| Hosting          | GitHub Pages (repo publik) + GitHub Actions                       |
-| Backend          | Supabase Free (Postgres, Auth, Storage, Edge Functions, Realtime) |
-| Captcha          | Cloudflare Turnstile                                              |
-| Email magic link | SMTP bawaan Supabase                                              |
-| Domain           | alamat bawaan GitHub Pages                                        |
-| Backup           | GitHub Action → repo privat terpisah, terenkripsi `age`           |
+| Kebutuhan     | Layanan                                                           |
+| ------------- | ----------------------------------------------------------------- |
+| Hosting       | GitHub Pages (repo publik) + GitHub Actions                       |
+| Backend       | Supabase Free (Postgres, Auth, Storage, Edge Functions, Realtime) |
+| Captcha       | Cloudflare Turnstile                                              |
+| Login petugas | Email + password (akun dibuat admin di Supabase Dashboard)        |
+| Domain        | alamat bawaan GitHub Pages                                        |
+| Backup        | GitHub Action → repo privat terpisah, terenkripsi `age`           |
 
 Frontend: Vite + React + TypeScript + Tailwind, motion, React Three Fiber + drei, Recharts.
 
