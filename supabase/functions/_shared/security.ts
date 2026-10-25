@@ -25,11 +25,46 @@ export function clientIp(headers: Headers): string {
   )
 }
 
+export interface TurnstileOptions {
+  /**
+   * UUID yang dikirim sebagai `idempotency_key` siteverify: memverifikasi ulang token yang sama
+   * dengan kunci yang sama tidak gagal "timeout-or-duplicate". Isi dengan idempotency_key kiriman.
+   */
+  idempotencyKey?: string
+  /** Bila respons memuat `action` non-kosong, wajib sama dengan nilai ini. */
+  expectedAction?: string
+  /** Bila tidak kosong dan respons memuat `hostname`, hostname wajib salah satu dari ini. */
+  allowedHostnames?: string[]
+  fetchImpl?: typeof fetch
+  /** Batas waktu siteverify (ms). Habis waktu = gagal (tertutup). */
+  timeoutMs?: number
+}
+
+/** Hostname dari daftar origin (ALLOWED_ORIGINS), mis. https://a.github.io → a.github.io. */
+export function hostnamesFromOrigins(origins: string[]): string[] {
+  const out: string[] = []
+  for (const o of origins) {
+    try {
+      out.push(new URL(o).hostname.toLowerCase())
+    } catch {
+      /* origin tidak valid diabaikan */
+    }
+  }
+  return out
+}
+
+interface SiteverifyResponse {
+  success?: boolean
+  action?: unknown
+  hostname?: unknown
+}
+
+/** Verifikasi token Turnstile di server. Gagal tertutup: error/timeout jaringan = false. */
 export async function verifyTurnstile(
   token: string,
   secret: string,
   ip: string,
-  fetchImpl: typeof fetch = fetch,
+  opts: TurnstileOptions = {},
 ): Promise<boolean> {
   if (!secret) return false
   if (!token || token.length > 2048) return false
@@ -39,14 +74,31 @@ export async function verifyTurnstile(
   body.append('secret', secret)
   body.append('response', token)
   if (ip && ip !== 'unknown') body.append('remoteip', ip)
+  if (opts.idempotencyKey) body.append('idempotency_key', opts.idempotencyKey)
   try {
-    const res = await fetchImpl('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-      method: 'POST',
-      body,
-    })
+    const res = await (opts.fetchImpl ?? fetch)(
+      'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+      { method: 'POST', body, signal: AbortSignal.timeout(opts.timeoutMs ?? 8000) },
+    )
     if (!res.ok) return false
-    const data = (await res.json()) as { success?: boolean }
-    return data.success === true
+    const data = (await res.json()) as SiteverifyResponse
+    if (data.success !== true) return false
+    if (
+      opts.expectedAction &&
+      typeof data.action === 'string' &&
+      data.action !== '' &&
+      data.action !== opts.expectedAction
+    )
+      return false
+    const hosts = opts.allowedHostnames ?? []
+    if (
+      hosts.length > 0 &&
+      typeof data.hostname === 'string' &&
+      data.hostname !== '' &&
+      !hosts.includes(data.hostname.toLowerCase())
+    )
+      return false
+    return true
   } catch {
     return false
   }

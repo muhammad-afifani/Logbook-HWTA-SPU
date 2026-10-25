@@ -24,6 +24,11 @@ const PUBLIC_BOUNDARY_PATTERNS = [
       'Batas publik: 3D interior khusus petugas. Pindah ke interior lewat route petugas, bukan import.',
   },
   {
+    group: ['@supabase/*'],
+    message:
+      'Batas publik: halaman publik tidak boleh membawa supabase-js (pakai fetch ke Edge Function).',
+  },
+  {
     group: ['@/lib/supabase', '@/lib/supabase*', '@/lib/api/*', '!@/lib/api/public-status'],
     message: 'Batas publik: hanya boleh memakai @/lib/api/public-status.',
   },

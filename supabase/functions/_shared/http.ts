@@ -21,9 +21,46 @@ export function json(
   })
 }
 
-/** Baca body JSON dengan batas ukuran. */
+export class BodyTooLargeError extends Error {
+  constructor() {
+    super('payload-too-large')
+    this.name = 'BodyTooLargeError'
+  }
+}
+
+/**
+ * Baca body sebagai teks UTF-8 dengan batas BYTE. Ditolak lebih awal bila header
+ * content-length melebihi batas; selain itu stream dibaca bertahap dan dihentikan begitu
+ * melewati batas (tidak pernah menampung body tanpa batas di memori).
+ * UTF-8 rusak → TypeError (perlakukan sebagai body tak terbaca).
+ */
+export async function readBodyText(req: Request, maxBytes: number): Promise<string> {
+  const declared = Number(req.headers.get('content-length') ?? '')
+  if (Number.isFinite(declared) && declared > maxBytes) throw new BodyTooLargeError()
+  if (!req.body) return ''
+  const reader = req.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined)
+      throw new BodyTooLargeError()
+    }
+    chunks.push(value)
+  }
+  const buf = new Uint8Array(total)
+  let offset = 0
+  for (const c of chunks) {
+    buf.set(c, offset)
+    offset += c.byteLength
+  }
+  return new TextDecoder('utf-8', { fatal: true }).decode(buf)
+}
+
+/** Baca body JSON dengan batas ukuran (byte). */
 export async function readJson(req: Request, maxBytes = 64 * 1024): Promise<unknown> {
-  const text = await req.text()
-  if (text.length > maxBytes) throw new Error('payload-too-large')
-  return JSON.parse(text)
+  return JSON.parse(await readBodyText(req, maxBytes))
 }

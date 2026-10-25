@@ -74,8 +74,15 @@ describe('validateSubmission', () => {
     expect(validateSubmission({ ...valid, items: many }, opts).ok).toBe(false)
   })
 
-  it('menolak idempotency_key bukan UUID dan input non-objek', () => {
+  it('menolak idempotency_key bukan UUID v4 dan input non-objek', () => {
     expect(validateSubmission({ ...valid, idempotency_key: 'x' }, opts).ok).toBe(false)
+    // v1 (berbasis waktu) bisa ditebak → ditolak; kunci berfungsi sebagai capability.
+    expect(
+      validateSubmission(
+        { ...valid, idempotency_key: '00000000-0000-1000-8000-000000000001' },
+        opts,
+      ).ok,
+    ).toBe(false)
     expect(validateSubmission(null, opts).ok).toBe(false)
   })
 })

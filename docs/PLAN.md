@@ -400,7 +400,7 @@ Di setiap akhir fase saya menjalankan `pnpm lint && pnpm typecheck && pnpm test 
    - **[A1]** Seed uji coba hanya data dummy, misalnya pengirim "Uji Coba 01" dengan telepon `+62 812-0000-0001`.
    - Kolom aktor (`created_by`, `verified_by`) tidak memakai FK ke `auth.users`. Nama petugas disimpan sebagai snapshot, agar restore ke DB kosong tidak gagal.
    - Auth email + password (`signInWithPassword`) + RequireRole. Sign up dimatikan. README menjelaskan cara admin membuat akun dan me-reset password [K1].
-2. **Form publik:** wizard 3 langkah, picker bottom-sheet, combobox, stepper, kompres foto, draft otomatis, antrean kirim ulang, layar sukses (path draw + kartu tiket), cek status.
+2. **Form publik [F2 selesai, lihat §8c]:** wizard 3 langkah, picker bottom-sheet, combobox, stepper, kompres foto, draft otomatis, antrean kirim ulang, layar sukses (path draw + kartu tiket), cek status.
 3. **Officer:** antrean verifikasi (kartu swipe + konfirmasi), badge selisih, form keluar FIFO, logbook dengan filter/pencarian, daftar lot + progress umur, master data, export CSV, tampilan cetak, alert.
 4. **Dashboard realtime [A1]:** publik = cincin kapasitas % + status ada/tidak ada limbah + LiveDot. Petugas = KPI count-up (stok kg, lot aktif, mendekati batas, masuk/keluar bulan ini), grafik Recharts (stok per jenis, tren masuk vs keluar, donut kelompok, distribusi umur), alert. Keduanya memakai broadcast + reload RPC.
 5. **3D interior (khusus petugas [K1], route `/petugas/3d`):** model prosedural (drum instanced, pallet, IBC, jumbo bag, jerigen, box, rak tabung), zona lantai, curb, pintu roller, ventilasi, signage, APAR, hologram pending, animasi verifikasi/keluar, panel "Muat atau tidak?", what-if ghost, info sheet, preset kamera, atap transparan, siang/malam, fallback SVG 2D, unit test planner.
@@ -433,6 +433,35 @@ Di setiap akhir fase saya menjalankan `pnpm lint && pnpm typecheck && pnpm test 
   - `pallet_slots` diisi RPC admin di Fase 5. Sebelum itu `public_status()` mengestimasi slot dari kemasan tersisa per lot dibagi `app_config.capacity_slots_total` (42).
   - Tanggal terima lot = tanggal masuk kiriman (jam simpan dihitung sejak limbah masuk SPU).
   - Status tiket publik tidak menampilkan kg (hanya kode/nama limbah dan jumlah kemasan).
+
+## 8c. Fase 2 — hasil, keputusan, dan Realtime [F2]
+
+**Realtime — hasil eksperimen di stack lokal (`ops/checks/realtime-anon.mjs`):**
+
+| Pemeriksaan                                     | Kondisi saat ini (channel publik `spu:public`) | Dengan usulan                                      |
+| ----------------------------------------------- | ---------------------------------------------- | -------------------------------------------------- |
+| Anon subscribe `spu:public`                     | **bisa** (tanpa RLS)                           | bisa, **hanya menerima**                           |
+| Anon mengirim event palsu ke `spu:public`       | **bisa** (anon lain menerimanya)               | **tidak**, event tidak sampai                      |
+| Anon masuk channel private lain                 | ditolak (`Unauthorized`)                       | ditolak                                            |
+| Event dari trigger DB sampai ke anon            | ya                                             | ya (payload `at,id,scope`)                         |
+| Anon join topik publik sembarang (relay gratis) | **bisa**                                       | masih bisa kecuali _Allow public access_ dimatikan |
+
+Jawaban atas pertanyaan: channel "data berubah" **bukan private**, jadi RLS di `realtime.messages` **tidak dipakai**; anon bisa subscribe dan juga mengirim.
+
+**Usulan (belum diterapkan, menunggu persetujuan):** migrasi baru yang (1) mengganti `realtime.send(..., private := true)` di `app_private.broadcast_changed` dan (2) menambah satu policy `SELECT` pada `realtime.messages` untuk `anon, authenticated` dengan syarat `realtime.topic() = 'spu:public' and extension = 'broadcast'` (tanpa policy `INSERT` ⇒ klien tidak bisa mengirim). Prototipe sudah teruji lokal: R1, R2, R4 lolos. Pengiriman dari trigger tetap berjalan karena fungsinya `security definer` milik `postgres` (BYPASSRLS). Di Dashboard: _Realtime → Settings → Allow public access_ dimatikan agar topik sembarang tertolak (tidak bisa diverifikasi lokal; periksa apakah opsi tersedia di paket Free). **Catatan:** ini menambah policy di skema `realtime` milik Supabase (bukan `auth`/`storage`); keputusan ada pada Anda.
+
+**Submit-waste (dikerjakan subagen Opus, diverifikasi ulang):**
+
+- Migrasi 08: `svc_find_submission(uuid)` (service_role) dan `svc_create_submission` tahan balapan (`app_private.insert_submission` + blok `EXCEPTION` pada `unique_violation`). Balapan dua sesi psql bersamaan diuji manual oleh subagen: 1 baris, counter tidak bolong.
+- Kirim ulang idempoten tanpa Turnstile (kunci UUID v4), URL unggah hanya selagi `pending`.
+- Turnstile: `idempotency_key` siteverify, `action`, `hostname` ∈ `ALLOWED_ORIGINS`, batas waktu 8 dtk, gagal tertutup.
+- Body ≤ 64 KiB (dibaca bertahap), `Content-Type` wajib JSON, 429 dengan `Retry-After`.
+- Tambahan saya: regex UUID server diperketat ke **v4 saja**; `newId` klien memakai `getRandomValues` (122-bit) bila `randomUUID` tidak tersedia.
+- Risiko tersisa: rate limit 10/jam per hash IP ikut menghitung kirim ulang dan 403 (NAT bersama bisa terkena); permintaan tak valid memanggil `svc_form_options` sebelum rate limit (satu RPC murah per request); kunci yang ada dijawab 200 sedangkan yang tak dikenal 403 (menebak 122-bit tidak realistis).
+
+**Form publik (dikerjakan Sonnet):** wizard 3 langkah (geser horizontal), progress bar, bar aksi menempel yang mengikuti keyboard (`visualViewport`), combobox sumber/entity (saran **yang disetujui petugas** saja), picker limbah bottom-sheet dengan pencarian kode/nama + chip kelompok (warna + kode), stepper jumlah kemasan (+ opsi "perkirakan dari berat"), foto ≤ 3 dikompres di perangkat (sisi ≤ 1280 px, WebP/JPEG ≤ 900 KB), draft otomatis, antrean kirim ulang (tanpa token dulu; Turnstile hanya bila server meminta), layar tiket (centang digambar → kartu naik → kg menghitung naik, salin kode), halaman cek status tanpa PII. Anggaran: JS awal halaman form **158 KB gzip** (batas 180); supabase-js tidak ikut.
+
+**Temuan uji peramban yang diperbaiki:** `fieldset` melebarkan stepper melewati layar (tombol "+" di x=360–408 pada layar 390); bar aksi sempat salah posisi selama animasi halaman karena leluhur ber-`transform` (kini lewat portal); navigasi wizard menghapus error dari server (ditemukan tes komponen).
 
 ## 9. Risiko dan mitigasi
 

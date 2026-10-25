@@ -117,7 +117,8 @@ function BottomNav() {
   return (
     <nav
       aria-label="Navigasi utama"
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/85 backdrop-blur-md lg:hidden"
+      data-bottom-nav
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/85 backdrop-blur-md transition-transform duration-200 ease-out lg:hidden"
       style={{ paddingBottom: 'var(--safe-bottom)' }}
     >
       <ul className="mx-auto grid h-[var(--bottom-nav-h)] max-w-lg grid-cols-4">

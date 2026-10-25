@@ -64,7 +64,8 @@ export type ValidationErrors = Record<string, string>
 export type ValidationResult =
   { ok: true; value: SubmissionPayload } | { ok: false; errors: ValidationErrors }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+// Hanya UUID v4 (acak 122-bit): idempotency_key berfungsi sebagai capability pemilik kiriman.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const CODE_RE = /^[A-Za-z0-9-]{2,20}$/
 const PKG_RE = /^[a-z0-9_]{2,32}$/
 

@@ -28,7 +28,9 @@ const entry = Object.keys(manifest).find((k) => manifest[k].isEntry)
 const keys = closure([entry, FORM_ROUTE])
 let total = 0
 const rows = []
-const banned = /WebGLRenderer|THREE\.|@react-three/
+// three.js/R3F dan supabase-js (GoTrueClient dkk.) tidak boleh ikut termuat di halaman form.
+const banned =
+  /WebGLRenderer|THREE\.|@react-three\/|GoTrueClient|PostgrestClient|RealtimeClient|StorageClient/
 const offenders = []
 
 for (const key of keys) {
@@ -51,7 +53,7 @@ if (totalKB > BUDGET_KB) {
   failed = true
 }
 if (offenders.length) {
-  console.error(`GAGAL: kode 3D ikut termuat di halaman form: ${offenders.join(', ')}`)
+  console.error(`GAGAL: kode 3D/supabase-js ikut termuat di halaman form: ${offenders.join(', ')}`)
   failed = true
 }
 process.exit(failed ? 1 : 0)

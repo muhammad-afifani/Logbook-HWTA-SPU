@@ -136,6 +136,37 @@
   }
 }
 
+/* Bar aksi form: menempel di bawah, naik mengikuti keyboard/navigasi (hanya transform). */
+:root {
+  --nav-offset: calc(var(--bottom-nav-h) + var(--safe-bottom));
+}
+html[data-keyboard='open'] {
+  --nav-offset: 0px;
+}
+@media (min-width: 1024px) {
+  :root {
+    --nav-offset: 0px;
+  }
+}
+.action-bar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 25;
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+  transform: translate3d(0, calc(-1 * var(--kb-offset, 0px) - var(--nav-offset)), 0);
+}
+@media (min-width: 1024px) {
+  .action-bar {
+    left: 16rem; /* lebar sidebar */
+  }
+}
+html[data-keyboard='open'] nav[data-bottom-nav] {
+  transform: translate3d(0, 100%, 0);
+}
+
 @keyframes shimmer {
   to {
     transform: translateX(100%);

@@ -60,6 +60,22 @@ Rencana lengkap & keputusan: `docs/PLAN.md`. Patuhi file ini di setiap fase.
 - Kolom aktor (`created_by`, `verified_by`) tanpa FK ke `auth.users` (nama di-snapshot), agar restore ke DB kosong tidak gagal.
 - Repo publik: `.gitignore` mencakup `.env*`, backup, ekspor, dan kunci (`*.age`, `*.gpg`, `*.dump`, `backup/`, `exports/`, ...). Gitleaks berjalan di CI (`secret-scan.yml`) memakai CLI v8.30.1 yang dipin versi + SHA-256 (bukan gitleaks-action, jadi tanpa lisensi). Selalu pakai `--redact`. Workflow tidak boleh mencetak data atau secret ke log, karena log Actions repo publik bisa dibaca semua orang.
 
+## Form publik & submit-waste (Fase 2)
+
+- Kiriman publik hanya lewat `submit-waste`. Urutan: CORS/metode → `Content-Type: application/json` (415) → body ≤ 64 KiB (413, dibaca bertahap) → validasi skema (422) → rate limit per hash IP (429 + `Retry-After`) → `idempotency_key` sudah tercatat? → verifikasi Turnstile (action `submit-waste`, hostname ∈ `ALLOWED_ORIGINS`) → `svc_create_submission` → signed upload URL.
+- Kirim ulang dengan `idempotency_key` yang sudah tercatat mengembalikan tiket yang sama (200) **tanpa** Turnstile ulang, tanpa PII, dan URL unggah hanya diberikan selama status `pending` (bukti foto terverifikasi tidak boleh tertimpa). Kunci wajib UUID v4 (capability pemilik); klien membuatnya dengan `crypto.randomUUID()`/`getRandomValues`.
+- Logika request ada di `_shared/submit-handler.ts` (DI, diuji Vitest); `index.ts` hanya merangkai `Deno.env` + `Deno.serve`. Log error hanya memuat tahap + status/kode, **tidak pernah** body, nama, telepon, pesan DB, atau kunci.
+- `svc_*` yang menangkap `unique_violation` wajib membungkus counter + insert dalam satu blok `EXCEPTION` agar nomor tiket tidak bolong (lihat migrasi 08).
+- Frontend form: API hanya lewat `@/lib/public-form/api` (fetch, tanpa supabase-js). Validasi **memakai modul yang sama dengan server** via alias `@shared` (`supabase/functions/_shared`): jangan menduplikasi aturan.
+- Draft, foto, dan antrean kirim ulang disimpan **di perangkat** (localStorage / IndexedDB, cadangan memori). Antrean berisi nama & telepon di perangkat itu sendiri dan dihapus begitu terkirim.
+- UI: target sentuh ≥ 48 px; `fieldset` di dalam flex/grid wajib `min-w-0` (bawaan peramban `min-inline-size: min-content` membuat isinya melebar melewati layar). Elemen `position: fixed` tidak boleh berada di dalam leluhur ber-`transform` (animasi halaman): render lewat portal ke `<body>` (lihat `StickyActionBar`, `BottomSheet`).
+- React Compiler lint (`react-hooks` v7) aktif: tanpa `setState` sinkron di dalam efek, tanpa akses `ref.current` saat render, helper non-komponen tidak diekspor dari berkas komponen.
+- Uji peramban sungguhan terhadap stack lokal (mengisi wizard, foto, antre offline, 360×640) dijalankan manual di Fase 2; suite Playwright otomatis di Fase 7.
+
+## Realtime (status)
+
+- Channel `spu:public` saat ini **publik**: anon bisa subscribe **dan mengirim event palsu** (`ops/checks/realtime-anon.mjs` R2 = GAGAL sampai usulan di `docs/PLAN.md` §8c diputuskan). Jangan membangun fitur yang mengandalkannya sebelum itu.
+
 ## Pola migrasi & database (Fase 1)
 
 - Default privileges bawaan Supabase memberi anon/authenticated hak penuh pada objek BARU di `public`. **Jangan** mengubahnya (`ALTER DEFAULT PRIVILEGES` dilarang, diuji `src/test/repo-guards.test.ts`). Untuk setiap objek baru:

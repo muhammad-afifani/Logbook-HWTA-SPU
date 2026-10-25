@@ -15,9 +15,9 @@ describe('AppShell', () => {
         <RouterProvider router={router} />
       </LazyMotion>,
     )
-    expect(
-      await screen.findByRole('heading', { name: 'Lapor limbah B3 masuk' }),
-    ).toBeInTheDocument()
+    // Tunggu form selesai dimuat (kerangka muat diganti badan form), baru periksa judul halaman.
+    await screen.findByRole('heading', { name: 'Data pengirim' })
+    expect(screen.getByRole('heading', { name: 'Lapor limbah B3 masuk' })).toBeInTheDocument()
     expect(screen.getAllByRole('navigation', { name: 'Navigasi utama' })).toHaveLength(2)
     expect(screen.getAllByText('SPU').length).toBeGreaterThan(0)
     // Tidak ada pemilih lokasi.

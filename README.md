@@ -50,8 +50,23 @@ pnpm db:check     # reset + migrasi + seed → pgTAP → smoke Edge Functions �
   append-only, RPC, realtime).
 - `ops/checks/anon-curl.sh` memanggil REST endpoint setiap tabel dengan anon key dan **gagal bila
   ada baris data yang kembali**. Skrip ini juga untuk project asli (lihat di bawah).
+- `ops/checks/realtime-anon.mjs` memeriksa otorisasi Realtime untuk anon (R2 saat ini GAGAL, lihat
+  `docs/PLAN.md` §8c).
 - Edge runtime lokal tidak memuat ulang kode otomatis. Setelah mengubah `supabase/functions/**`,
   jalankan `docker restart supabase_edge_runtime_e-logbook-spu`.
+
+## Mencoba form dengan Supabase lokal
+
+```bash
+pnpm db:start
+export VITE_SUPABASE_URL=http://127.0.0.1:54321 VITE_DEMO=0
+export VITE_SUPABASE_ANON_KEY="$(pnpm exec supabase status -o json | jq -r .ANON_KEY)"
+export VITE_TURNSTILE_SITE_KEY=1x00000000000000000000AA   # kunci uji Cloudflare (selalu lolos)
+pnpm dev     # http://localhost:5173/#/lapor
+```
+
+Tanpa variabel itu, aplikasi berjalan dalam **mode demo** (data contoh lokal, tanpa jaringan).
+Server lokal memakai secret Turnstile uji dari `supabase/functions/.env`.
 
 ## Setup Supabase asli (project Free)
 
@@ -84,6 +99,8 @@ pnpm db:check     # reset + migrasi + seed → pgTAP → smoke Edge Functions �
    - `supabase/functions/.env` hanya untuk Supabase **lokal**, berisi nilai uji, dan diabaikan git
      (diuji di `src/test/repo-guards.test.ts`).
    - Jangan pakai `supabase secrets set --env-file …` dengan file lokal.
+   - **Wajib** mengisi `ALLOWED_ORIGINS` (`https://<owner>.github.io`, tanpa path). Selain untuk CORS,
+     nilai ini dipakai untuk memeriksa `hostname` hasil verifikasi Turnstile.
    - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, dan `SUPABASE_SERVICE_ROLE_KEY` disuntikkan Supabase ke
      Edge Functions secara otomatis; jangan di-set manual.
 6. **Deploy Edge Functions:**

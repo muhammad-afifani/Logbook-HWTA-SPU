@@ -137,6 +137,7 @@ else echo "GAGAL: public_status mengembalikan kunci tak terduga: $keys"; fail=1;
 declare -A RPC_ARGS=(
   [svc_create_submission]='{"p":{},"p_ip_hash":"x"}'
   [svc_ticket_status]='{"p_code":"SPU-0000-0000-AAAA"}'
+  [svc_find_submission]='{"p_idempotency_key":"00000000-0000-4000-8000-000000000000"}'
   [svc_form_options]='{}'
   [svc_rate_limit]='{"p_ip_hash":"x","p_bucket":"x","p_limit":1,"p_window_seconds":60}'
   [verify_submission]='{"p_submission_id":"00000000-0000-4000-8000-000000000000","p_decision":"reject"}'

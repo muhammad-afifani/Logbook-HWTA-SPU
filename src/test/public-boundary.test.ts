@@ -26,6 +26,29 @@ describe('batas data publik (ESLint)', () => {
     expect(msgs.length).toBeGreaterThan(0)
   })
 
+  it.each([
+    [
+      'src/features/submit-form/SubmitWizard.tsx',
+      "import { createClient } from '@supabase/supabase-js'",
+    ],
+    [
+      'src/features/status-check/StatusCheck.tsx',
+      "import { createClient } from '@supabase/supabase-js'",
+    ],
+    ['src/features/submit-form/SubmitWizard.tsx', "import { getSupabase } from '@/lib/supabase'"],
+    ['src/features/submit-form/SubmitWizard.tsx', "import { Mesh } from 'three'"],
+  ])('form & cek status publik menolak: %s ← %s', async (file, code) => {
+    const msgs = await restrictedMessages(`${code}\nexport {}\n`, file)
+    expect(msgs.length).toBeGreaterThan(0)
+  })
+
+  it('form publik boleh memakai API form (fetch ke Edge Function) dan modul bersama', async () => {
+    const code =
+      "import { submitWaste } from '@/lib/public-form/api'\n" +
+      "import { validateSubmission } from '@shared/submission.ts'\nexport { submitWaste, validateSubmission }\n"
+    expect(await restrictedMessages(code, 'src/features/submit-form/SubmitWizard.tsx')).toEqual([])
+  })
+
   it('peta site publik boleh memakai kontrak public-status dan three.js', async () => {
     const code =
       "import { parsePublicStatus } from '@/lib/api/public-status'\n" +

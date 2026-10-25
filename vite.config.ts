@@ -13,7 +13,11 @@ export default defineConfig(({ mode }) => {
     base,
     plugins: [react(), tailwindcss()],
     resolve: {
-      alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+      alias: {
+        '@': fileURLToPath(new URL('./src', import.meta.url)),
+        // Logika validasi yang sama persis dengan Edge Function (satu sumber kebenaran).
+        '@shared': fileURLToPath(new URL('./supabase/functions/_shared', import.meta.url)),
+      },
     },
     build: {
       target: 'es2022',

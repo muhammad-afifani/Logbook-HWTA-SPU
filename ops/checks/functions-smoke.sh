@@ -48,6 +48,32 @@ check "kirim ulang (idempoten): HTTP 200, tiket sama" \
 R3=$(post "$API/functions/v1/submit-waste" -d "$(jq '.submission.phone="123" | .submission.items=[]' <<<"$SUB")")
 check "isian salah → 422 dengan error per field" \
   '[[ $(code_of "$R3") == 422 && $(body_of "$R3" | jq -r ".fields.phone // empty") != "" ]]'
+# Respons pertama hilang → kirim ulang dengan kunci sama tanpa token Turnstile (token sekali pakai).
+R4=$(post "$API/functions/v1/submit-waste" -d "$(jq 'del(.turnstile_token)' <<<"$SUB")")
+check "kirim ulang TANPA turnstile_token: HTTP 200, tiket sama, URL upload baru" \
+  '[[ $(code_of "$R4") == 200 && $(body_of "$R4" | jq -r .ticket_code) == "$TICKET" && $(body_of "$R4" | jq ".created, (.uploads | length)" | tr -d "\n") == false1 ]]'
+check "kirim ulang tanpa nama/telepon/entity" \
+  '! body_of "$R4" | grep -Eqi "Uji Coba Smoke|0812|6281200000099|PT Dummy|Workshop|sender|phone"'
+NEWKEY=$(cat /proc/sys/kernel/random/uuid)
+R5=$(post "$API/functions/v1/submit-waste" -d "$(jq --arg k "$NEWKEY" 'del(.turnstile_token) | .submission.idempotency_key=$k' <<<"$SUB")")
+check "kunci baru tanpa turnstile_token → 403" '[[ $(code_of "$R5") == 403 ]]'
+BIG=$(mktemp); jq --arg pad "$(head -c 70000 /dev/zero | tr '\0' x)" '.pad=$pad' <<<"$SUB" > "$BIG"
+R6=$(post "$API/functions/v1/submit-waste" --data-binary "@$BIG"); rm -f "$BIG"
+check "body > 64 KiB → 413" '[[ $(code_of "$R6") == 413 ]]'
+R7=$(curl -s -m 60 -o /dev/null -w '%{http_code}' -X POST -H 'content-type: text/plain' \
+  "$API/functions/v1/submit-waste" -d "$SUB")
+check "Content-Type bukan JSON → 415 (HTTP $R7)" '[[ $R7 == 415 ]]'
+# Batas 10 kiriman/jam per hash IP (DB baru di-reset). Kirim kunci baru tanpa token sampai 429.
+HDRS=$(mktemp); RL=0
+for _ in $(seq 1 12); do
+  RL=$(curl -s -m 60 -o /dev/null -D "$HDRS" -w '%{http_code}' -X POST -H 'content-type: application/json' \
+    "$API/functions/v1/submit-waste" -d "$(jq --arg k "$(cat /proc/sys/kernel/random/uuid)" \
+    'del(.turnstile_token) | .submission.idempotency_key=$k' <<<"$SUB")")
+  [[ $RL == 429 ]] && break
+done
+RETRY=$(tr -d '\r' <"$HDRS" | sed -n 's/^[Rr]etry-[Aa]fter: *//p'); rm -f "$HDRS"
+check "rate limit → 429 dengan Retry-After 1..3600 (HTTP $RL, Retry-After ${RETRY:-kosong})" \
+  '[[ $RL == 429 && $RETRY =~ ^[0-9]+$ && $RETRY -ge 1 && $RETRY -le 3600 ]]'
 
 echo "storage (foto)"
 UPLOAD_URL=$(jq -r '.uploads[0].url' <<<"$BODY"); PHOTO_PATH=$(jq -r '.uploads[0].path' <<<"$BODY")
