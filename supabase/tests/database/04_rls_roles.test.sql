@@ -43,7 +43,8 @@ reset role;
 -- ---- petugas
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated"}';
-select is((select count(*)::int from public.submissions), 1, 'petugas: melihat kiriman');
+select is((select count(*)::int from public.submissions
+            where idempotency_key = '00000000-0000-4000-8000-000000000101'), 1, 'petugas: melihat kiriman');
 select is((select count(*)::int from public.waste_types), 22, 'petugas: melihat 22 jenis limbah');
 select is((select count(*)::int from public.profiles), 1, 'petugas: hanya melihat profil sendiri');
 select is((select count(*)::int from public.audit_log), 0, 'petugas: audit_log tidak terlihat (khusus admin)');
@@ -66,7 +67,9 @@ select is((select value #>> '{}' from public.app_config where key = 'backdate_ma
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-4000-8000-0000000000a2","role":"authenticated"}';
 update public.waste_types set kg_per_package = 175 where code = 'B105d';
-select is((select count(*)::int from public.profiles), 3, 'admin: melihat semua profil');
+select is((select count(*)::int from public.profiles where id in (
+              '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a2',
+              '00000000-0000-4000-8000-0000000000a4')), 3, 'admin: melihat semua profil (termasuk orang lain)');
 select ok((select count(*) from public.audit_log) > 0, 'admin: melihat audit_log');
 select throws_ok($$ delete from public.waste_types where code = 'B105d' $$,
   '42501', null, 'admin: hapus master ditolak (pakai kolom active)');

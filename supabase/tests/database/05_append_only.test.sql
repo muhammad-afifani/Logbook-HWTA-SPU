@@ -31,8 +31,14 @@ select public.verify_submission((select v::uuid from fx where k = 'sub'), 'accep
   (select jsonb_agg(jsonb_build_object('item_id', i.id, 'actual_weight_kg', 390, 'actual_package_count', 2))
      from public.submission_items i where i.submission_id = (select v::uuid from fx where k = 'sub')));
 reset role;
+insert into fx select 'lot', l.id::text from public.lots l
+  join public.submission_items i on i.id = l.submission_item_id
+ where i.submission_id = (select v::uuid from fx where k = 'sub');
+insert into fx select 'mv', min(m.id)::text from public.stock_movements m
+ where m.lot_id = (select v::uuid from fx where k = 'lot');
 
-select is((select stock_kg from public.lot_stock), 390.00::numeric, 'stok awal 390 kg dari movement inbound');
+select is((select stock_kg from public.lot_stock where lot_id = (select v::uuid from fx where k = 'lot')),
+  390.00::numeric, 'stok awal 390 kg dari movement inbound');
 
 -- postgres (pemilik tabel) tetap ditolak trigger
 select throws_ok($$ update public.stock_movements set qty_kg = 1 $$, 'LB001', null, 'UPDATE stock_movements ditolak');
@@ -66,14 +72,14 @@ select is((select count(*)::int from public.submission_items
 -- Koreksi = movement baru
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"00000000-0000-4000-8000-0000000000b1","role":"authenticated"}';
-select lives_ok($$ select public.correct_movement((select min(id) from public.stock_movements), -10, 0,
+select lives_ok($$ select public.correct_movement((select v::bigint from fx where k = 'mv'), -10, 0,
                                                   'Salah input timbangan (uji)') $$,
   'koreksi via correct_movement berhasil');
-select throws_ok($$ select public.correct_movement((select min(id) from public.stock_movements), -1000, 0,
+select throws_ok($$ select public.correct_movement((select v::bigint from fx where k = 'mv'), -1000, 0,
                                                    'Uji stok negatif') $$,
   'LB002', null, 'koreksi yang membuat stok negatif ditolak');
 reset role;
-select is((select stock_kg from public.lot_stock), 380.00::numeric,
+select is((select stock_kg from public.lot_stock where lot_id = (select v::uuid from fx where k = 'lot')), 380.00::numeric,
   'stok = SUM(movements): 390 - 10 = 380 kg, movement asal tetap utuh');
 
 select * from finish();
