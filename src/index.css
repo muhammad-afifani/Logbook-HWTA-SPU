@@ -1,0 +1,170 @@
+@import 'tailwindcss';
+@import './design/tokens.css';
+
+/* Tema dikendalikan atribut data-theme pada <html>, bukan media query. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+@theme inline {
+  --color-bg: var(--c-bg);
+  --color-bg-elevated: var(--c-bg-elevated);
+  --color-bg-sunken: var(--c-bg-sunken);
+  --color-surface: var(--c-surface);
+  --color-surface-strong: var(--c-surface-strong);
+  --color-line: var(--c-border);
+  --color-line-strong: var(--c-border-strong);
+  --color-fg: var(--c-text);
+  --color-fg-muted: var(--c-text-muted);
+  --color-fg-faint: var(--c-text-faint);
+  --color-accent: var(--c-accent);
+  --color-accent-strong: var(--c-accent-strong);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-on-accent: var(--c-on-accent);
+  --color-warn: var(--c-warn);
+  --color-warn-soft: var(--c-warn-soft);
+  --color-orange: var(--c-orange);
+  --color-danger: var(--c-danger);
+  --color-danger-soft: var(--c-danger-soft);
+  --color-info: var(--c-info);
+  --color-focus: var(--c-focus);
+
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  --radius-card: 1.125rem;
+  --spacing-touch: 48px;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    min-height: 100dvh;
+    background-color: var(--c-bg);
+    background-image:
+      radial-gradient(120% 60% at 15% -10%, var(--c-accent-soft), transparent 60%),
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size:
+      100% 100%,
+      32px 32px,
+      32px 32px;
+    color: var(--c-text);
+    font-family: var(--font-sans);
+    font-feature-settings: 'ss01', 'cv11';
+    overscroll-behavior-y: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--c-focus);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  ::selection {
+    background: var(--c-accent-soft);
+  }
+
+  /* Angka tabel rata kanan dan sejajar. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  /* Kartu kaca halus */
+  .glass {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-card);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.04),
+      0 10px 30px -18px rgb(0 0 0 / 0.6);
+  }
+
+  /* Skeleton shimmer (hanya transform: gradient bergerak lewat pseudo-element) */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background: var(--c-border);
+    border-radius: 10px;
+  }
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.07), transparent);
+    animation: shimmer 1.4s var(--ease-in-out) infinite;
+  }
+
+  /* Titik live berdenyut halus */
+  .live-dot {
+    position: relative;
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background: var(--c-accent);
+  }
+  .live-dot::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--c-accent);
+    animation: live-pulse 2.4s var(--ease-out) infinite;
+  }
+  .live-dot[data-state='stale'],
+  .live-dot[data-state='stale']::after {
+    background: var(--c-warn);
+  }
+  .live-dot[data-state='offline'] {
+    background: var(--c-text-faint);
+  }
+  .live-dot[data-state='offline']::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes live-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  70%,
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+  .skeleton::after,
+  .live-dot::after {
+    animation: none;
+  }
+}

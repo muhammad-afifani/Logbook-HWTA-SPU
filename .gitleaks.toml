@@ -1,0 +1,14 @@
+# Konfigurasi gitleaks: aturan bawaan + pengecualian nilai yang memang publik.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Nilai publik yang aman"
+regexes = [
+  # Site key uji resmi Cloudflare Turnstile (selalu lolos, bukan secret)
+  '''1x00000000000000000000AA''',
+]
+paths = [
+  '''pnpm-lock\.yaml''',
+  '''public/fonts/.*''',
+]

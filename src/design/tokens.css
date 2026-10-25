@@ -1,0 +1,121 @@
+/*
+ * Token desain E-Logbook SPU — "ruang kontrol industri yang tenang".
+ * Sumber kebenaran warna & durasi CSS. Nilai pasangan teks/latar diuji kontrasnya
+ * (WCAG AA) oleh src/design/contrast.test.ts — perbarui test bila menambah pasangan.
+ */
+
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url('/fonts/plus-jakarta-sans-latin.woff2') format('woff2-variations');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url('/fonts/jetbrains-mono-latin.woff2') format('woff2-variations');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ---------- Tema gelap (default) ---------- */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --c-bg: #0b1513;
+  --c-bg-elevated: #101d1a;
+  --c-bg-sunken: #08100e;
+  --c-surface: rgb(255 255 255 / 0.04);
+  --c-surface-strong: rgb(255 255 255 / 0.075);
+  --c-border: rgb(255 255 255 / 0.09);
+  --c-border-strong: rgb(255 255 255 / 0.16);
+  --c-text: #e6f0ec;
+  --c-text-muted: #9fb5ad;
+  --c-text-faint: #7d948c;
+  --c-accent: #34d399;
+  --c-accent-strong: #10b981;
+  --c-accent-soft: rgb(52 211 153 / 0.14);
+  --c-on-accent: #03140d;
+  --c-warn: #f5b841;
+  --c-warn-soft: rgb(245 184 65 / 0.14);
+  --c-orange: #f08a3c;
+  --c-danger: #f26b5b;
+  --c-danger-soft: rgb(242 107 91 / 0.14);
+  --c-info: #6cb8f0;
+  --c-focus: #7cf0c0;
+  --c-glow: rgb(52 211 153 / 0.35);
+  --grid-line: rgb(255 255 255 / 0.035);
+
+  /* Kelompok segregasi G1–G8 (selaras src/config/waste-groups.ts) */
+  --g1: #3987e5;
+  --g2: #d95926;
+  --g3: #199e70;
+  --g4: #c98500;
+  --g5: #d55181;
+  --g6: #008300;
+  --g7: #9085e9;
+  --g8: #e66767;
+}
+
+/* ---------- Tema terang ---------- */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --c-bg: #f2f5f3;
+  --c-bg-elevated: #ffffff;
+  --c-bg-sunken: #e7ece9;
+  --c-surface: rgb(255 255 255 / 0.72);
+  --c-surface-strong: #ffffff;
+  --c-border: rgb(14 28 24 / 0.1);
+  --c-border-strong: rgb(14 28 24 / 0.2);
+  --c-text: #0e1c18;
+  --c-text-muted: #45594f;
+  --c-text-faint: #5b6f66;
+  --c-accent: #0b7a53;
+  --c-accent-strong: #08643f;
+  --c-accent-soft: rgb(11 122 83 / 0.1);
+  --c-on-accent: #ffffff;
+  --c-warn: #8f5a00;
+  --c-warn-soft: rgb(196 132 0 / 0.14);
+  --c-orange: #b04a0c;
+  --c-danger: #b8322a;
+  --c-danger-soft: rgb(184 50 42 / 0.1);
+  --c-info: #1f6aa5;
+  --c-focus: #0b7a53;
+  --c-glow: rgb(11 122 83 / 0.25);
+  --grid-line: rgb(14 28 24 / 0.04);
+
+  --g1: #2a78d6;
+  --g2: #eb6834;
+  --g3: #1baf7a;
+  --g4: #eda100;
+  --g5: #e87ba4;
+  --g6: #008300;
+  --g7: #6250d6;
+  --g8: #e34948;
+}
+
+:root {
+  /* Durasi (selaras src/design/motion.ts) */
+  --dur-micro: 160ms;
+  --dur-transition: 400ms;
+  --dur-scene: 900ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* Layout */
+  --touch: 48px;
+  --bottom-nav-h: 64px;
+  --header-h: 56px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
