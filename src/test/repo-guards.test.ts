@@ -6,6 +6,7 @@
  *  - Syarat 5: seed hanya master data (4 tabel), tanpa data pribadi.
  *  - Syarat 6: kode tidak memanggil signUp, signInWithOtp, resetPasswordForEmail.
  */
+import { spawnSync } from 'node:child_process'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -139,5 +140,95 @@ describe('syarat 6: tanpa signUp / OTP / reset password email', () => {
     expect(src).not.toMatch(/\bsignInWithOtp\s*\(/)
     expect(src).not.toMatch(/\bresetPasswordForEmail\s*\(/)
     expect(src).not.toMatch(/\/auth\/v1\/(signup|otp|magiclink|recover)\b/)
+  })
+})
+
+describe('secret & .env tidak pernah ter-commit', () => {
+  /** null = git tidak tersedia / bukan checkout git (test dilewati); selain itu status + stdout. */
+  const git = (...args: string[]): { status: number; out: string } | null => {
+    const r = spawnSync('git', args, { cwd: root, encoding: 'utf8' })
+    if (r.error || r.status === null) return null
+    if (args[0] !== 'check-ignore' && r.status !== 0) return null // mis. bukan repo git
+    return { status: r.status, out: r.stdout }
+  }
+  const isEnvFile = (f: string) => /(^|\/)\.env($|\.)/.test(f) && !/\.env\.example$/.test(f)
+
+  it.each([
+    'supabase/functions/.env',
+    '.env',
+    '.env.local',
+    '.env.production',
+    'backup/dump.sql',
+    'exports/logbook-export-2026.csv',
+    'logbook-export-2026.csv',
+    'x.dump',
+    'x.age',
+    'age-key.txt',
+  ])('%s diabaikan git', (path) => {
+    const r = git('check-ignore', '--no-index', path)
+    if (r === null) return
+    // status 0 = diabaikan; status 1 = TIDAK diabaikan (harus gagal); >1 = error git
+    expect({ status: r.status, path: r.out.trim() }).toEqual({ status: 0, path })
+  })
+
+  it('tidak ada file .env yang dilacak (selain .env.example)', () => {
+    const r = git('ls-files')
+    if (r === null) return
+    expect(r.out.split('\n').filter(isEnvFile)).toEqual([])
+  })
+
+  it('.env tidak pernah ada di riwayat git mana pun', () => {
+    const r = git('log', '--all', '--name-only', '--pretty=format:')
+    if (r === null) return
+    expect(r.out.split('\n').filter((f) => f && isEnvFile(f))).toEqual([])
+  })
+
+  it('.env.example hanya berisi nilai uji/placeholder, bukan kunci asli', () => {
+    for (const p of ['.env.example', 'supabase/functions/.env.example']) {
+      const text = read(p)
+      expect(text, p).not.toMatch(/eyJ[A-Za-z0-9_-]{10,}\./) // JWT
+      expect(text, p).not.toMatch(/sb_secret_|sb_publishable_|service_role/i)
+    }
+    const fn = read('supabase/functions/.env.example')
+    expect(fn).toMatch(/TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA/) // secret uji resmi
+    expect(fn).toMatch(/IP_HASH_SALT=ganti-dengan/) // placeholder, bukan salt asli
+  })
+
+  it('README: secret produksi hanya lewat supabase secrets set, bukan file .env', () => {
+    const readme = read('README.md')
+    expect(readme).toMatch(/supabase secrets set/)
+    expect(readme).toMatch(/tidak pernah\*\* ditulis ke file `\.env`/)
+    expect(readme).toMatch(/Jangan pakai `supabase secrets set --env-file/)
+  })
+
+  it('workflow tidak memuat nilai secret literal', () => {
+    for (const f of walk('.github/workflows', ['.yml'])) {
+      const text = read(f)
+      expect(text, f).not.toMatch(/eyJ[A-Za-z0-9_-]{10,}\./)
+      expect(text, f).not.toMatch(/sb_secret_/)
+    }
+  })
+})
+
+describe('skema terekspos REST', () => {
+  it('supabase/config.toml: api.schemas hanya public (app_private/auth/storage tidak terekspos)', () => {
+    const toml = read('supabase/config.toml')
+    const m = toml.match(/^\[api\][\s\S]*?^schemas\s*=\s*(\[[^\]]*\])/m)
+    expect(m, 'baris schemas di [api] tidak ditemukan').not.toBeNull()
+    expect(JSON.parse(m![1]!)).toEqual(['public'])
+  })
+
+  it('ops/checks/anon-curl.sh memeriksa skema terekspos & storage anon', () => {
+    const sh = read('ops/checks/anon-curl.sh')
+    for (const needle of [
+      'Accept-Profile',
+      'Only the following schemas are exposed: public',
+      'object/upload/sign',
+      'object/sign/',
+      'INSERT objek',
+      'SELECT objek',
+    ]) {
+      expect(sh, needle).toContain(needle)
+    }
   })
 })

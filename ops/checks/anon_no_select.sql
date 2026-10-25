@@ -46,3 +46,7 @@ select d.defaclrole::regrole as pemilik, d.defaclnamespace::regnamespace as skem
 from pg_default_acl d
 where d.defaclnamespace::regnamespace::text in ('public', 'storage')
 order by 1, 2, 3;
+
+\echo '== 6. INFORMASI: konfigurasi role authenticator (di project hosted dapat memuat pgrst.db_schemas)'
+\echo '   Skema yang benar-benar diekspos REST diperiksa lewat HTTP oleh ops/checks/anon-curl.sh.'
+select rolname, rolconfig from pg_roles where rolname = 'authenticator';

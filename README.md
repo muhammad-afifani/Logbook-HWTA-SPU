@@ -55,7 +55,9 @@ pnpm db:check     # reset + migrasi + seed → pgTAP → smoke Edge Functions �
 
 ## Setup Supabase asli (project Free)
 
-> Jangan jalankan langkah 3 sebelum disetujui pemilik proyek. Data uji tetap dummy.
+> **Semua perintah di bagian ini dijalankan sendiri oleh pemilik proyek.** Pengembangan
+> (termasuk asisten AI) tidak pernah menjalankan `db push`, `functions deploy`, `secrets set`,
+> atau perintah apa pun ke project asli. Data uji tetap dummy.
 
 1. **Buat project** di supabase.com (paket Free, region terdekat).
 2. **Auth → Sign In / Providers:**
@@ -63,16 +65,32 @@ pnpm db:check     # reset + migrasi + seed → pgTAP → smoke Edge Functions �
    - Provider **Email: tetap AKTIF**. Mematikan provider ini juga mematikan login.
    - Tidak memakai magic link, OTP, atau email reset. SMTP bawaan Supabase hanya mengirim ke
      anggota tim organisasi, jadi alur petugas tidak boleh bergantung padanya.
-3. **Migrasi:** `pnpm exec supabase link --project-ref <ref>` lalu `pnpm exec supabase db push`.
+3. **Exposed schemas hanya `public`** (Dashboard → Project Settings → API → _Exposed schemas_;
+   letak menu bisa berbeda antar versi Dashboard, cari kata kuncinya):
+   - Hapus `graphql_public` (bawaan) sehingga isinya **hanya `public`**.
+   - `app_private` (helper internal, tabel `counters`/`rate_limits`) **tidak boleh** ada di daftar itu.
+   - Jangan mengisi _Extra search path_ dengan `app_private`.
+   - Verifikasi: langkah 9 (`ops/checks/anon-curl.sh`) memeriksa semua skema bawaan dan membaca
+     daftar yang benar-benar diekspos dari pesan server (`Only the following schemas are exposed: public`).
+4. **Migrasi:** `pnpm exec supabase link --project-ref <ref>` lalu `pnpm exec supabase db push`.
    Seed master: jalankan isi `supabase/seed.sql` di SQL Editor.
-4. **Secrets Edge Functions** (nilai asli tidak pernah di-commit):
+5. **Secrets Edge Functions — hanya lewat `supabase secrets set`** (atau Dashboard → Edge Functions
+   → Secrets). Nilai produksi **tidak pernah** ditulis ke file `.env` dan tidak pernah di-commit:
    ```bash
-   pnpm exec supabase secrets set TURNSTILE_SECRET_KEY=<secret Turnstile> \
-     IP_HASH_SALT=$(openssl rand -hex 32) \
-     ALLOWED_ORIGINS=https://<user>.github.io
+   pnpm exec supabase secrets set TURNSTILE_SECRET_KEY='<secret Turnstile>' \
+     IP_HASH_SALT="$(openssl rand -hex 32)" \
+     ALLOWED_ORIGINS='https://<user>.github.io'
+   ```
+   - `supabase/functions/.env` hanya untuk Supabase **lokal**, berisi nilai uji, dan diabaikan git
+     (diuji di `src/test/repo-guards.test.ts`).
+   - Jangan pakai `supabase secrets set --env-file …` dengan file lokal.
+   - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, dan `SUPABASE_SERVICE_ROLE_KEY` disuntikkan Supabase ke
+     Edge Functions secara otomatis; jangan di-set manual.
+6. **Deploy Edge Functions:**
+   ```bash
    pnpm exec supabase functions deploy submit-waste check-status form-options photo-url
    ```
-5. **Akun petugas** (dilakukan admin):
+7. **Akun petugas** (dilakukan admin):
    - Dashboard → Authentication → Users → **Add user** → isi email + password → centang
      **Auto Confirm User**. Petugas **tidak** diundang sebagai anggota organisasi Supabase.
    - Beri peran di SQL Editor:
@@ -83,10 +101,20 @@ pnpm db:check     # reset + migrasi + seed → pgTAP → smoke Edge Functions �
      ```
    - **Lupa password:** admin membuka user di Dashboard → _Reset password_/ubah password, lalu
      memberikan password baru ke petugas secara langsung.
-6. **Verifikasi setelah deploy** (hanya membaca, memakai anon key yang memang publik):
+8. **Realtime — menunggu keputusan** (lihat `docs/PLAN.md` §8c). Saat ini `spu:public` adalah
+   channel publik: anon bisa subscribe **dan** mengirim event palsu. Dashboard publik (Fase 4)
+   belum dibangun, jadi tidak ada klien yang memakainya; usulan perbaikan (channel private + RLS
+   hanya-terima + matikan _Allow public access_) belum diterapkan. Jangan mengandalkan Realtime
+   publik sebelum itu diputuskan.
+9. **Verifikasi setelah deploy** (hanya memakai anon key yang memang publik):
    ```bash
-   SUPABASE_URL=https://<ref>.supabase.co SUPABASE_ANON_KEY=<anon key> ops/checks/anon-curl.sh
+   export SUPABASE_URL=https://<ref>.supabase.co SUPABASE_ANON_KEY=<anon key>
+   ops/checks/anon-curl.sh            # tabel, skema terekspos, storage, RPC
+   node ops/checks/realtime-anon.mjs  # autorisasi Realtime (R2 akan GAGAL sampai usulan diterapkan)
    psql "<connection string>" -f ops/checks/anon_no_select.sql   # atau tempel di SQL Editor
    ```
+   Uji storage lebih kuat dengan objek nyata: buat satu kiriman uji berfoto, ambil path-nya
+   (`select storage_path from public.submission_photos limit 1;` di SQL Editor), lalu jalankan
+   ulang `PROBE_OBJECT_PATH='<path>' ops/checks/anon-curl.sh`.
 
 Panduan Turnstile, deploy Pages, keep-alive, dan backup/restore ditulis lengkap di Fase 7.
