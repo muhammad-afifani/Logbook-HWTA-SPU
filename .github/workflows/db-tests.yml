@@ -1,0 +1,53 @@
+name: DB tests (RLS)
+
+# Test RLS/pgTAP dijalankan setiap kali skema, Edge Functions, atau skrip cek berubah,
+# ditambah jadwal mingguan. Memakai Supabase CLI lokal di runner (Docker).
+on:
+  push:
+    branches: ['**']
+    paths: ['supabase/**', 'ops/checks/**', '.github/workflows/db-tests.yml', 'package.json']
+  pull_request:
+    paths: ['supabase/**', 'ops/checks/**', '.github/workflows/db-tests.yml', 'package.json']
+  schedule:
+    - cron: '41 2 * * 3' # mingguan, Rabu 02:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pgtap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Env lokal Edge Functions (nilai uji, bukan secret)
+        run: |
+          cp supabase/functions/.env.example supabase/functions/.env
+          sed -i "s/^IP_HASH_SALT=.*/IP_HASH_SALT=$(openssl rand -hex 32)/" supabase/functions/.env
+      - name: Supabase lokal
+        run: pnpm exec supabase start -x studio,imgproxy,mailpit,vector,logflare,supavisor,postgres-meta
+      - name: Migrasi + seed dari nol
+        run: pnpm exec supabase db reset
+      - name: pgTAP (RLS, privilese, storage, append-only, RPC, realtime)
+        run: pnpm exec supabase test db
+      - name: Smoke Edge Functions + storage
+        run: ops/checks/functions-smoke.sh
+      - name: Anon via HTTP (REST per tabel + storage + RPC)
+        run: |
+          export SUPABASE_URL=$(pnpm exec supabase status -o json | jq -r .API_URL)
+          export SUPABASE_ANON_KEY=$(pnpm exec supabase status -o json | jq -r .ANON_KEY)
+          ops/checks/anon-curl.sh
+      - name: Stop
+        if: always()
+        run: pnpm exec supabase stop --no-backup

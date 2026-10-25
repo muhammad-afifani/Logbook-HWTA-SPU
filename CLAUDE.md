@@ -24,16 +24,18 @@ Rencana lengkap & keputusan: `docs/PLAN.md`. Patuhi file ini di setiap fase.
 
 ## Perintah
 
-| Perintah         | Fungsi                                                                              |
-| ---------------- | ----------------------------------------------------------------------------------- |
-| `pnpm dev`       | server dev (`http://localhost:5173/#/`)                                             |
-| `pnpm lint`      | ESLint, `--max-warnings=0`                                                          |
-| `pnpm typecheck` | `tsc -b --noEmit`                                                                   |
-| `pnpm test`      | Vitest (unit)                                                                       |
-| `pnpm build`     | typecheck + build produksi (`VITE_BASE=/<repo>/` untuk Pages)                       |
-| `pnpm size`      | anggaran JS halaman form ≤ 180 KB gzip + larangan three.js (jalankan setelah build) |
-| `pnpm check`     | semua di atas berurutan — **wajib hijau sebelum lapor/commit fase**                 |
-| `pnpm format`    | Prettier                                                                            |
+| Perintah                    | Fungsi                                                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                  | server dev (`http://localhost:5173/#/`)                                                                                                                       |
+| `pnpm lint`                 | ESLint, `--max-warnings=0`                                                                                                                                    |
+| `pnpm typecheck`            | `tsc -b --noEmit`                                                                                                                                             |
+| `pnpm test`                 | Vitest (unit)                                                                                                                                                 |
+| `pnpm build`                | typecheck + build produksi (`VITE_BASE=/<repo>/` untuk Pages)                                                                                                 |
+| `pnpm size`                 | anggaran JS halaman form ≤ 180 KB gzip + larangan three.js (jalankan setelah build)                                                                           |
+| `pnpm check`                | semua di atas berurutan — **wajib hijau sebelum lapor/commit fase**                                                                                           |
+| `pnpm format`               | Prettier                                                                                                                                                      |
+| `pnpm db:start` / `db:stop` | Supabase CLI lokal (butuh Docker)                                                                                                                             |
+| `pnpm db:check`             | reset + migrasi + seed → pgTAP (`db:test`) → smoke Edge Functions (`db:smoke`) → anon via HTTP (`db:anon`) — **wajib hijau setiap kali skema/fungsi berubah** |
 
 ## Struktur
 
@@ -57,6 +59,21 @@ Rencana lengkap & keputusan: `docs/PLAN.md`. Patuhi file ini di setiap fase.
 - `anon` **tanpa SELECT** ke tabel mentah mana pun. Publik hanya memanggil `public_status()` (persen kapasitas bulat + ada/tidak ada limbah) dan `ping()`. Fungsi agregat lain hanya untuk petugas.
 - Kolom aktor (`created_by`, `verified_by`) tanpa FK ke `auth.users` (nama di-snapshot), agar restore ke DB kosong tidak gagal.
 - Repo publik: `.gitignore` mencakup `.env*`, backup, ekspor, dan kunci (`*.age`, `*.gpg`, `*.dump`, `backup/`, `exports/`, ...). Gitleaks berjalan di CI (`secret-scan.yml`) memakai CLI v8.30.1 yang dipin versi + SHA-256 (bukan gitleaks-action, jadi tanpa lisensi). Selalu pakai `--redact`. Workflow tidak boleh mencetak data atau secret ke log, karena log Actions repo publik bisa dibaca semua orang.
+
+## Pola migrasi & database (Fase 1)
+
+- Default privileges bawaan Supabase memberi anon/authenticated hak penuh pada objek BARU di `public`. **Jangan** mengubahnya (`ALTER DEFAULT PRIVILEGES` dilarang, diuji `src/test/repo-guards.test.ts`). Untuk setiap objek baru:
+  - **Tabel/view:** `create` → `revoke all on table … from anon, authenticated` → grant minimal ke `authenticated` → `enable row level security` → policy hanya `to authenticated`.
+  - **Fungsi:** `revoke execute … from public, anon, authenticated`, lalu grant eksplisit. `security definer` wajib `set search_path = ''` dan nama objek ditulis lengkap.
+  - **Sequence:** `revoke all on all sequences in schema public from anon, authenticated`.
+- Anon hanya boleh `ping()` dan `public_status()`. Fungsi untuk Edge Functions bernama `svc_*`, hanya untuk `service_role`. Helper internal di skema `app_private` (tidak diekspos API).
+- Tanpa grant/policy/ALTER ke skema `auth`/`storage`. Satu-satunya sentuhan storage adalah baris bucket privat. Tidak ada policy `storage.objects`; signed URL hanya dari Edge Function.
+- Kode error domain: `LB001` (append-only), `LB002` (validasi), `LB003` (tidak berwenang).
+- Setiap tabel/fungsi baru: tambah ke `supabase/tests/database/*`, ke daftar tabel `ops/checks/anon-curl.sh`, dan perbarui jumlah relasi di test 01.
+- Seed hanya master: `waste_groups`, `packaging_types`, `waste_types`, `app_config`. `pallet_slots` diisi RPC admin dari `computeLayout` (Fase 5).
+- Edge Functions tanpa dependensi npm. Logika murni di `supabase/functions/_shared/` (diuji Vitest, dipakai ulang form). Typecheck lewat `tsconfig.functions.json` + `deno-shim.d.ts`. Fungsi publik `verify_jwt = false` (perlindungannya Turnstile + validasi + rate limit), `photo-url` `verify_jwt = true`.
+- Edge runtime lokal tidak memuat ulang kode otomatis: `docker restart supabase_edge_runtime_e-logbook-spu`.
+- Config Supabase: `[auth] enable_signup = false` (pendaftaran mati), `[auth.email] enable_signup = true` (provider email tetap aktif; kalau `false`, login ikut mati).
 
 ## Login petugas (Keputusan K1)
 

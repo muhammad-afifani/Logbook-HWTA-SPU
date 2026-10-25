@@ -18,9 +18,17 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "size": "node scripts/check-bundle.mjs",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm size"
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm size",
+    "db:start": "supabase start -x studio,imgproxy,mailpit,vector,logflare,supavisor,postgres-meta",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:test": "supabase test db",
+    "db:smoke": "ops/checks/functions-smoke.sh",
+    "db:anon": "bash -c 'SUPABASE_URL=$(supabase status -o json | jq -r .API_URL) SUPABASE_ANON_KEY=$(supabase status -o json | jq -r .ANON_KEY) ops/checks/anon-curl.sh'",
+    "db:check": "pnpm db:reset && pnpm db:test && pnpm db:smoke && pnpm db:anon"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.118.0",
     "motion": "14.6.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
@@ -43,10 +51,16 @@
     "jsdom": "30.1.3",
     "prettier": "3.9.10",
     "prettier-plugin-tailwindcss": "0.8.1",
+    "supabase": "2.122.0",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.0",
     "vite": "8.3.5",
     "vitest": "5.0.5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "supabase"
+    ]
   }
 }

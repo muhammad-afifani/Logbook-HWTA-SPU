@@ -419,6 +419,21 @@ Di setiap akhir fase saya menjalankan `pnpm lint && pnpm typecheck && pnpm test 
      - CI repo privat hanya bisa memeriksa yang tidak butuh kunci privat: file berawalan `age-encryption.org/v1`, ukuran > 0, dan jumlah baris per tabel sebelum enkripsi (tanpa isi data).
    - Catatan: file storage (foto) tidak ikut backup tabel. Kalau perlu, ekspor terpisah yang juga terenkripsi (ditanyakan di Fase 7).
 
+## 8b. Catatan pelaksanaan Fase 1 [F1]
+
+- **Perbedaan Supabase vs Postgres polos** (syarat 1):
+  1. Default privileges Supabase memberi anon hak pada objek baru. Pemeriksaan Fase 0 "default ACL tidak memberi anon" **lolos di Postgres polos (setelah hardening) tetapi gagal di Supabase**, karena syarat 2 melarang mengubah default ACL. Diganti dengan revoke per objek + test hak efektif + test "default ACL sama dengan baseline".
+  2. Skema `storage` memberi anon/authenticated grant tabel bawaan. Akses diblokir RLS tanpa policy (diuji perilaku, bukan grant).
+  3. `realtime.send` menambah kunci `id` ke payload broadcast.
+  4. Collation basis data en_US, sehingga perbandingan urutan di pgTAP memakai `collate "C"`.
+- **Perubahan dari rencana:**
+  - `group_incompatibilities` menjadi kolom `waste_groups.incompatible_with` (seed tetap di 4 tabel master).
+  - `request-upload` digabung ke `submit-waste`: signed upload URL dikembalikan saat kirim, dan dibuat ulang saat kirim ulang dengan idempotency key yang sama.
+  - Tambahan Edge Function `form-options` (master untuk form publik, via service role) dan `photo-url` (satu-satunya pembuat signed URL baca, 60 dtk).
+  - `pallet_slots` diisi RPC admin di Fase 5. Sebelum itu `public_status()` mengestimasi slot dari kemasan tersisa per lot dibagi `app_config.capacity_slots_total` (42).
+  - Tanggal terima lot = tanggal masuk kiriman (jam simpan dihitung sejak limbah masuk SPU).
+  - Status tiket publik tidak menampilkan kg (hanya kode/nama limbah dan jumlah kemasan).
+
 ## 9. Risiko dan mitigasi
 
 - **[A1] Batas paket gratis Supabase:**
